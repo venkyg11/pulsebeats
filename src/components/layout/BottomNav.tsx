@@ -1,0 +1,32 @@
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { Home, Library, Heart, Settings, Search } from 'lucide-react';
+
+export const BottomNav: React.FC = () => {
+  const navItems = [
+    { to: '/', icon: <Home size={22} />, label: 'Home' },
+    { to: '/continue', icon: <Search size={22} />, label: 'Search' },
+    { to: '/library', icon: <Library size={22} />, label: 'Library' },
+    { to: '/favorites', icon: <Heart size={24} />, label: 'Favorites' },
+    { to: '/settings', icon: <Settings size={22} />, label: 'Settings' },
+  ];
+
+  return (
+    <nav className="bottom-nav">
+      <div className="bottom-nav-inner glass-panel">
+        {navItems.map((item) => (
+          <NavLink 
+            key={item.to} 
+            to={item.to} 
+            className={({ isActive }: { isActive: boolean }) => `bottom-item ${isActive ? 'active' : ''}`}
+          >
+            <div className="icon-wrapper">
+              {item.icon}
+            </div>
+            <span className="nav-label">{item.label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  );
+};

@@ -110,6 +110,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const nextSong = useCallback(() => {
     if (queue.length === 0) return;
+    // 🚨 CRITICAL FIX: Unlock audio context
+    if (audioRef.current) audioRef.current.play().catch(() => {});
     setCurrentIndex((prev) => {
       let next = prev + 1;
       if (next >= queue.length) {
@@ -217,25 +219,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      // If we don't have permission, we still shouldn't pop up here.
-      if (permissionStatus !== 'granted') return;
-      
-      audioRef.current.play();
+      audioRef.current.play().catch(e => console.error('Resume failed', e));
       setIsPlaying(true);
     }
   };
 
   const playSong = (index: number, newQueue?: SongMetadata[]) => {
+    // 🚨 CRITICAL FIX: Claim user gesture immediately
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+    
     if (newQueue) {
       setQueue(newQueue);
     }
     setCurrentIndex(index);
-    if (audioRef.current && isPlaying) {
-      audioRef.current.pause();
-    }
   };
 
   const prevSong = () => {
+    // 🚨 CRITICAL FIX: Unlock audio context
+    if (audioRef.current) audioRef.current.play().catch(() => {});
+    
     if (progress > 3) {
       seekTo(0);
       return;

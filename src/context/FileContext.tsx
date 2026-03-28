@@ -150,7 +150,22 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const existing = await getSongById(songId);
     if (existing) return;
 
-    const songMeta = await parseFile(file, fileHandle, shouldStoreBlob);
+    let targetFile = file;
+    if (shouldStoreBlob) {
+      // 🚨 CRITICAL FIX: Android PWAs lose standard <input> File references.
+      // We MUST copy the literal byte data into a new, raw memory Blob so IDB doesn't store a ghost path.
+      try {
+        const buffer = await file.arrayBuffer();
+        targetFile = new Blob([buffer], { type: file.type || 'audio/mpeg' }) as File;
+        // Keep the original name for metadata fallback
+        Object.defineProperty(targetFile, 'name', { value: file.name });
+        Object.defineProperty(targetFile, 'size', { value: file.size });
+      } catch (err) {
+        console.warn('Failed to deep-copy file to ArrayBuffer, falling back to weak reference.', err);
+      }
+    }
+
+    const songMeta = await parseFile(targetFile, fileHandle, shouldStoreBlob);
     if (songMeta) {
       newSongs.push(songMeta);
     }

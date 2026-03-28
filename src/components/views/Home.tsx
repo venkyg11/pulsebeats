@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { useFiles } from '../../context/FileContext';
 import { usePlayer } from '../../context/PlayerContext';
-import { Play, Music, Sparkles } from 'lucide-react';
+import { Music, Sparkles } from 'lucide-react';
 import type { SongMetadata } from '../../utils/db';
 import { formatDuration } from '../../utils/format';
 
 export const Home: React.FC = () => {
   const { library, permissionStatus, verifyLibrary } = useFiles();
-  const { playSong } = usePlayer();
+  const { playSong, currentSong } = usePlayer();
 
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
@@ -39,40 +39,40 @@ export const Home: React.FC = () => {
       <section className="dash-section" style={{ marginBottom: '40px' }}>
         <h2 className="section-title">{title}</h2>
         <div className="home-card-grid">
-          {songs.map((song) => (
-            <div 
-              key={song.id} 
-              className="music-card glass-panel song-card-glow" 
-              onClick={() => {
-                const globalIdx = library.findIndex(s => s.id === song.id);
-                playSong(globalIdx, library);
-              }}
-              style={{ padding: '12px' }}
-            >
-              {isRecent(song.addedAt) && <div className="badge-new">NEW</div>}
-              <div className="card-art" style={{ borderRadius: '10px' }}>
-                {song.coverArt ? (
-                  <img src={song.coverArt} alt={song.title} />
-                ) : (
-                  <div className="card-fallback-icon">
-                    <Music size={32} />
-                  </div>
-                )}
-                <button className="card-play-btn glow-effect" style={{ width: '36px', height: '36px' }}>
-                  <Play size={18} />
-                </button>
-              </div>
-              <div className="card-info" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '2px', flex: 1 }} title={song.title}>{song.title}</h3>
-                  <span style={{ fontSize: '11px', color: 'var(--primary)', opacity: 0.7, marginLeft: '8px' }}>
-                    {formatDuration(song.duration)}
-                  </span>
+          {songs.map((song) => {
+            const isPlaying = currentSong?.id === song.id;
+            return (
+              <div 
+                key={song.id} 
+                className={`music-card glass-panel song-card-glow ${isPlaying ? 'playing' : ''}`} 
+                onClick={() => {
+                  const globalIdx = library.findIndex(s => s.id === song.id);
+                  playSong(globalIdx, library);
+                }}
+              >
+                {/* Top Row: New Badge & Duration */}
+                {isRecent(song.addedAt) && <div className="badge-new">NEW</div>}
+                <div className="card-duration">{formatDuration(song.duration)}</div>
+
+                {/* Center Content: Music Icon / Cover Art */}
+                <div className="card-art">
+                  {song.coverArt ? (
+                    <img src={song.coverArt} alt={song.title} />
+                  ) : (
+                    <div className="card-fallback-icon">
+                      <Music size={40} />
+                    </div>
+                  )}
                 </div>
-                <p style={{ fontSize: '12px' }} title={song.artist}>{song.artist}</p>
+
+                {/* Bottom Content: Info */}
+                <div className="card-info">
+                   <h3 title={song.title}>{song.title}</h3>
+                   <p title={song.artist}>{song.artist}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     );
@@ -91,11 +91,11 @@ export const Home: React.FC = () => {
           { name: 'Sunset Vibe', color: '#ff5e00' },
           { name: 'Data Stream', color: '#e0e0e0' }
         ].map(mix => (
-          <div key={mix.name} className="music-card glass-panel mix-card" style={{ padding: '12px' }}>
-            <div className="card-art" style={{ background: `linear-gradient(45deg, #121212, ${mix.color}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px' }}>
+          <div key={mix.name} className="music-card glass-panel mix-card">
+            <div className="card-art" style={{ background: `linear-gradient(45deg, #121212, ${mix.color}11)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ color: mix.color, opacity: 0.6 }}><Sparkles size={32} /></div>
               <div className="mix-overlay">
-                 <h3 style={{ fontSize: '13px', fontWeight: '800', textAlign: 'center', textTransform: 'uppercase' }}>{mix.name}</h3>
+                 <h3 style={{ fontSize: '12px', fontWeight: '800', textAlign: 'center', textTransform: 'uppercase' }}>{mix.name}</h3>
               </div>
             </div>
           </div>
@@ -109,12 +109,11 @@ export const Home: React.FC = () => {
       <header className="view-header">
         <h1>{getTimeGreeting()}</h1>
         <p className="text-muted">Your futuristic music hub</p>
-        <p style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '4px', opacity: 0.8 }}>built by venky ❤️</p>
       </header>
 
       <div className="dashboard-grid">
         {library.length > 0 && permissionStatus === 'prompt' && (
-          <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)' }}>
+          <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)', marginBottom: '24px', padding: '16px' }}>
             <div className="flex-between">
               <div>
                 <h3 className="text-primary" style={{ marginBottom: '4px' }}>Library Activation Required</h3>

@@ -171,8 +171,8 @@
 
 .fab-button {
   position: fixed;
-  bottom: calc(var(--bottom-nav-height) + 24px);
-  right: 24px;
+  bottom: 100px;
+  right: 16px;
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -182,9 +182,9 @@
   align-items: center;
   justify-content: center;
   z-index: 120;
-  transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border-light);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 15px var(--primary-glow);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
 }
 

@@ -1,11 +1,20 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useFiles } from '../../context/FileContext';
-import { Palette, Trash, RefreshCw, HardDrive, ShieldCheck, PlusCircle } from 'lucide-react';
+import { Palette, Trash, RefreshCw, HardDrive, ShieldCheck, PlusCircle, FolderOpen } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { theme, setTheme } = useTheme();
-  const { rescanAll, library, scanDirectory, verifyLibrary, permissionStatus } = useFiles();
+  const { rescanAll, library, scanDirectory, verifyLibrary, permissionStatus, isFileSystemApiSupported, handleManualFileSelect } = useFiles();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    if (isFileSystemApiSupported) {
+      scanDirectory();
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
 
   const themes = [
     { id: 'electric-blue', name: 'Electric Blue', style: { background: '#050505', color: '#00f3ff' } },
@@ -55,9 +64,21 @@ export const Settings: React.FC = () => {
             <p className="setting-title">Import Music</p>
             <p className="text-muted">Scan a local folder to add tracks to your library</p>
           </div>
-          <button className="btn-primary" style={{ width: 'auto', padding: '10px 20px' }} onClick={scanDirectory}>
-            <PlusCircle size={18} /> Add Music Folder
+          <button className="btn-primary" style={{ width: 'auto', padding: '10px 20px' }} onClick={handleImportClick}>
+            {isFileSystemApiSupported ? <PlusCircle size={18} /> : <FolderOpen size={18} />}
+            {isFileSystemApiSupported ? ' Add Music Folder' : ' Select Audio Files'}
           </button>
+          
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            style={{ display: 'none' }} 
+            multiple 
+            accept="audio/*" 
+            onChange={(e) => {
+              if (e.target.files) handleManualFileSelect(e.target.files);
+            }}
+          />
         </div>
 
         {library.length > 0 && permissionStatus !== 'granted' && (

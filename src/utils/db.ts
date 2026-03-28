@@ -10,6 +10,7 @@ export interface SongMetadata {
   coverArt?: string; // base64 string
   fileName: string;
   fileHandle?: any; // FileSystemFileHandle or similar reference
+  fileBlob?: File; // Full file blob for persistent storage on mobile
   addedAt: number;
   lastProgress?: number; 
   lastPlayedAt?: number;

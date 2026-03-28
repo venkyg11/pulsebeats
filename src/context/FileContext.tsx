@@ -12,6 +12,8 @@ interface FileContextType {
   toggleFavorite: (id: string) => Promise<void>;
   verifyLibrary: () => Promise<void>;
   getFileForSong: (song: SongMetadata) => Promise<File | null>;
+  handleManualFileSelect: (files: FileList) => Promise<void>;
+  isFileSystemApiSupported: boolean;
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined);
@@ -26,6 +28,8 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isScanning, setIsScanning] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   const [rootHandle, setRootHandle] = useState<any>(null);
+  
+  const isFileSystemApiSupported = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
   const loadSaved = useCallback(async () => {
     const saved = await getSongs();
@@ -72,7 +76,7 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const parseFile = async (file: File, fileHandle?: any): Promise<SongMetadata | null> => {
+  const parseFile = async (file: File, fileHandle?: any, shouldStoreBlob = false): Promise<SongMetadata | null> => {
     try {
       const metadata = await musicMetadata.parseBlob(file);
       
@@ -101,6 +105,7 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         duration,
         fileName: file.name,
         fileHandle,
+        fileBlob: shouldStoreBlob ? file : undefined,
         coverArt,
         addedAt: Date.now()
       };
@@ -114,20 +119,20 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
          duration,
          fileName: file.name,
          fileHandle,
+         fileBlob: shouldStoreBlob ? file : undefined,
          addedAt: Date.now()
       };
     }
   };
 
-  const processFile = async (entry: any, newSongs: SongMetadata[]) => {
-    const file = await entry.getFile();
+  const processFile = async (file: File, fileHandle: any, newSongs: SongMetadata[], shouldStoreBlob = false) => {
     const songId = `${file.name}-${file.size}`;
     
     // Skip if already in database
     const existing = await getSongById(songId);
     if (existing) return;
 
-    const songMeta = await parseFile(file, entry);
+    const songMeta = await parseFile(file, fileHandle, shouldStoreBlob);
     if (songMeta) {
       newSongs.push(songMeta);
     }
@@ -167,7 +172,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       for (let i = 0; i < allFileEntries.length; i += CONCURRENCY_LIMIT) {
         const batch = allFileEntries.slice(i, i + CONCURRENCY_LIMIT);
-        await Promise.all(batch.map(entry => processFile(entry, newSongs)));
+        await Promise.all(batch.map(async (entry) => {
+          const file = await entry.getFile();
+          return processFile(file, entry, newSongs, false);
+        }));
         
         // Periodic save to DB and UI update for large collections
         if (newSongs.length >= BATCH_SIZE) {
@@ -192,6 +200,29 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const handleManualFileSelect = async (files: FileList) => {
+    setIsScanning(true);
+    const newSongs: SongMetadata[] = [];
+    const BATCH_SIZE = 10;
+    const audioFiles = Array.from(files).filter(file => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      return supportedExtensions.includes(ext);
+    });
+
+    for (let i = 0; i < audioFiles.length; i++) {
+      const file = audioFiles[i];
+      await processFile(file, null, newSongs, true); // shouldStoreBlob = true
+
+      if (newSongs.length >= BATCH_SIZE || i === audioFiles.length - 1) {
+        await saveSongs([...newSongs]);
+        const currentSongs = await getSongs();
+        setLibrary(currentSongs.sort((a, b) => b.addedAt - a.addedAt));
+        newSongs.length = 0;
+      }
+    }
+    setIsScanning(false);
+  };
+
   const rescanAll = async () => {
     setIsScanning(true);
     await clearSongs();
@@ -208,18 +239,20 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return fileCache.get(song.id)!;
     }
 
-    // 2. Fetch from handle
+    // 2. Check for stored blob (Fallback/Mobile mode)
+    if (song.fileBlob) {
+      fileCache.set(song.id, song.fileBlob);
+      return song.fileBlob;
+    }
+
+    // 3. Fetch from handle (FS API mode)
     if (!song.fileHandle) return null;
     try {
-      // NOTE: We don't call requestPermission here! 
-      // It should have been granted at the directory level or previously.
       const file = await song.fileHandle.getFile();
       fileCache.set(song.id, file);
       return file;
     } catch (err) {
       console.error('Failed to get file from handle', err);
-      // If we failed due to permission, we don't popup here.
-      // The UI should show "Activate Library" based on permissionStatus.
       return null;
     }
   };
@@ -233,8 +266,8 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <FileContext.Provider value={{ 
-      library, isScanning, permissionStatus, 
-      scanDirectory, rescanAll, toggleFavorite, verifyLibrary, getFileForSong 
+      library, isScanning, permissionStatus, isFileSystemApiSupported,
+      scanDirectory, rescanAll, toggleFavorite, verifyLibrary, getFileForSong, handleManualFileSelect 
     }}>
       {children}
     </FileContext.Provider>

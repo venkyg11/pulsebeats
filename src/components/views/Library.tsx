@@ -4,7 +4,7 @@ import { usePlayer } from '../../context/PlayerContext';
 import { Play, Search, Music, Heart } from 'lucide-react';
 
 export const Library: React.FC = () => {
-  const { library, isScanning, toggleFavorite, permissionStatus, verifyLibrary } = useFiles();
+  const { library, isScanning, toggleFavorite, permissionStatus, verifyLibrary, isFileSystemApiSupported } = useFiles();
   const { playSong, currentSong: activeSong } = usePlayer();
   const [searchQuery, setSearchQuery] = useState('');
   const [animatingId, setAnimatingId] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export const Library: React.FC = () => {
         </div>
       </header>
 
-      {library.length > 0 && permissionStatus === 'prompt' && (
+      {isFileSystemApiSupported && library.length > 0 && permissionStatus === 'prompt' && (
         <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)', marginBottom: '24px', padding: '16px' }}>
           <div className="flex-between">
             <div>

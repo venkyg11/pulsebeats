@@ -25,53 +25,32 @@ const eqStyles = [
 
 export const FloatingSettings: React.FC<FloatingSettingsProps> = ({ onClose }) => {
   const { scanDirectory, isScanning } = useFiles();
-  const { isBoosted, toggleBoost, equalizerStyle, setEqualizerStyle } = usePlayer();
-
-  const changeTheme = (themeId: string) => {
-    document.documentElement.setAttribute('data-theme', themeId !== 'default' ? themeId : '');
-  };
+  const { isBoosted, toggleBoost, equalizerStyle, setEqualizerStyle, currentSong } = usePlayer();
 
   return (
-    <div className="floating-settings-popup glass-panel">
-      <div className="fsp-header">Quick Settings</div>
+    <div className={`squared-options-panel ${currentSong ? 'is-lifted' : ''}`}>
+      <div className="sop-header">Quick Actions</div>
       
-      <div className="fsp-row">
+      {/* 1st row: Volume Booster */}
+      <div className="sop-row">
         <span>Volume Booster</span>
         <button 
-          className={`btn-secondary ${isBoosted ? 'active' : ''}`}
+          className={`sop-toggle-btn ${isBoosted ? 'active' : ''}`}
           onClick={toggleBoost}
-          style={isBoosted ? { background: 'var(--warning)', color: '#fff' } : {}}
         >
           {isBoosted ? 'ON' : 'OFF'}
         </button>
       </div>
 
-      <div className="fsp-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-        <span>Themes</span>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {themes.map(t => (
-            <button 
-              key={t.id} 
-              className="btn-secondary"
-              onClick={() => changeTheme(t.id)}
-              style={{ padding: '8px', fontSize: '12px' }}
-              title={t.name}
-            >
-              {t.icon}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="fsp-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-        <span>Equalizer Style</span>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      {/* 2nd row: Equalizer Styles */}
+      <div className="sop-row-vertical">
+        <span>Select Equalizer Animation</span>
+        <div className="sop-grid">
           {eqStyles.map(s => (
             <button 
               key={s.id} 
-              className={`btn-secondary ${equalizerStyle === s.id ? 'active' : ''}`}
+              className={`sop-icon-btn ${equalizerStyle === s.id ? 'active' : ''}`}
               onClick={() => setEqualizerStyle(s.id)}
-              style={{ padding: '8px', fontSize: '12px' }}
               title={s.name}
             >
               {s.icon}
@@ -80,17 +59,37 @@ export const FloatingSettings: React.FC<FloatingSettingsProps> = ({ onClose }) =
         </div>
       </div>
 
+      {/* 3rd row: Import Music */}
       <button 
-        className="fsp-action"
+        className="sop-action-btn"
         onClick={() => {
           scanDirectory();
           onClose();
         }}
         disabled={isScanning}
       >
-        <FolderSearch size={20} />
+        <FolderSearch size={18} />
         {isScanning ? 'Importing...' : 'Import Music'}
       </button>
+
+      {/* Themes (Optional but integrated) */}
+      <div className="sop-row-vertical">
+        <span>Themes</span>
+        <div className="sop-grid">
+          {themes.map(t => (
+            <button 
+              key={t.id} 
+              className="sop-icon-btn"
+              onClick={() => {
+                document.documentElement.setAttribute('data-theme', t.id !== 'default' ? t.id : '');
+              }}
+              title={t.name}
+            >
+              {t.icon}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

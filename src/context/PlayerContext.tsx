@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { SongMetadata } from '../utils/db';
-import { updateSongProgress } from '../utils/db';
+import { updateSongProgress, saveSong } from '../utils/db';
 import { useFiles } from './FileContext';
 
 interface PlayerContextType {
@@ -32,7 +32,7 @@ interface PlayerContextType {
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { getFileForSong, permissionStatus } = useFiles();
+  const { library, getFileForSong, permissionStatus } = useFiles();
   const [queue, setQueue] = useState<SongMetadata[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,20 +45,59 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [equalizerStyle, setEqualizerStyle] = useState<'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular'>('classic');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const songRef = useRef<SongMetadata | null>(null);
+  
+  // Primary derived state for current song
   const currentSong = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+
+  // Sync queue with library updates (for favorites, etc)
+  useEffect(() => {
+    if (queue.length > 0 && library.length > 0) {
+      setQueue(prevQueue => prevQueue.map(qSong => {
+        const libSong = library.find(ls => ls.id === qSong.id);
+        if (libSong && (libSong.isFavorite !== qSong.isFavorite || libSong.title !== qSong.title)) {
+          return { ...qSong, ...libSong };
+        }
+        return qSong;
+      }));
+    }
+  }, [library]);
+
+  // Sync songRef with currentSong
+  useEffect(() => {
+    songRef.current = currentSong;
+  }, [currentSong]);
+
   const isBoosted = volume > 100;
 
   useEffect(() => {
     audioRef.current = new Audio();
-    audioRef.current.addEventListener('timeupdate', () => {
-      if (audioRef.current) setProgress(audioRef.current.currentTime);
-    });
-    audioRef.current.addEventListener('loadedmetadata', () => {
-      if (audioRef.current) setDuration(audioRef.current.duration);
-    });
+    const audio = audioRef.current;
+
+    const onTimeUpdate = () => {
+      setProgress(audio.currentTime);
+    };
+
+    const onLoadedMetadata = () => {
+      const newDuration = audio.duration;
+      if (!isNaN(newDuration)) {
+        setDuration(newDuration);
+        
+        const song = songRef.current;
+        if (song && (song.duration === 0 || !song.duration)) {
+          const updatedSong = { ...song, duration: newDuration };
+          saveSong(updatedSong);
+        }
+      }
+    };
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
     
     return () => {
-      audioRef.current?.pause();
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.pause();
     };
   }, []);
 

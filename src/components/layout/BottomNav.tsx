@@ -12,21 +12,22 @@ export const BottomNav: React.FC = () => {
   ];
 
   return (
-    <nav className="bottom-nav">
+    <nav className="bottom-nav-container">
       <div className="bottom-nav-inner glass-panel">
         {navItems.map((item) => (
           <NavLink 
             key={item.to} 
             to={item.to} 
-            className={({ isActive }: { isActive: boolean }) => `bottom-item ${isActive ? 'active' : ''}`}
+            className={({ isActive }: { isActive: boolean }) => `nav-item-mobile ${isActive ? 'active' : ''}`}
           >
-            <div className="icon-wrapper">
+            <div className="nav-icon-box">
               {item.icon}
             </div>
-            <span className="nav-label">{item.label}</span>
+            <span className="nav-text-label">{item.label}</span>
           </NavLink>
         ))}
       </div>
     </nav>
+
   );
 };

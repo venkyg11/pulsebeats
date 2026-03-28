@@ -6,6 +6,7 @@ import { MiniPlayer } from '../player/MiniPlayer';
 import { FullPlayer } from '../player/FullPlayer';
 import { FloatingSettings } from './FloatingSettings';
 import { usePlayer } from '../../context/PlayerContext';
+import { useFiles } from '../../context/FileContext';
 
 export const Layout: React.FC = () => {
   const { 
@@ -14,6 +15,8 @@ export const Layout: React.FC = () => {
   } = usePlayer();
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const { scanDirectory, isScanning } = useFiles();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -79,14 +82,19 @@ export const Layout: React.FC = () => {
         <FloatingSettings onClose={() => setIsSettingsOpen(false)} />
       )}
 
-      {/* Floating Action Button for Settings */}
+      {/* Squared Options Panel */}
+      {isSettingsOpen && (
+        <FloatingSettings onClose={() => setIsSettingsOpen(false)} />
+      )}
+
+      {/* Main Floating Action Button */}
       {!isFullPlayerOpen && (
         <button 
-          className={`fab-button glow-effect ${currentSong ? 'fab-lifted' : ''}`}
+          className={`fab-button glow-effect ${currentSong ? 'fab-lifted' : ''} ${isSettingsOpen ? 'is-active' : ''}`}
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-          title="Settings & Import"
+          title="Quick Settings"
         >
-          {isSettingsOpen ? <Settings size={24} /> : <Plus size={24} />}
+          <Plus size={24} />
         </button>
       )}
     </div>

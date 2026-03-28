@@ -14,40 +14,49 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="mini-player glass-panel glow-effect">
-      <div className="mini-progress" style={{ width: `${progressPercent}%` }} />
-      
-      <div className="mini-content" onClick={onExpand}>
-        <div className="mini-art">
-          {currentSong.coverArt ? (
-            <img src={currentSong.coverArt} alt="cover" />
-          ) : (
-            <div className="art-placeholder">
-              <Music size={20} className="fallback-icon" />
-            </div>
-          )}
-        </div>
-        
-        <div className="mini-info">
-          <h4>{currentSong.title}</h4>
-          <p>{currentSong.artist}</p>
-        </div>
+    <div className="mini-player glass-panel glow-effect slide-up">
+      {/* Top progress line - subtle and clean */}
+      <div className="mini-progress-container">
+        <div className="mini-progress-bar" style={{ width: `${progressPercent}%` }} />
       </div>
+      
+      <div className="mini-player-inner">
+        <div className="mini-content-group" onClick={onExpand}>
+          <div className="mini-art-container">
+            {currentSong.coverArt ? (
+              <img src={currentSong.coverArt} alt="cover" className="mini-art-img" />
+            ) : (
+              <div className="mini-art-placeholder">
+                <Music size={20} />
+              </div>
+            )}
+          </div>
+          
+          <div className="mini-song-details">
+            <h4 className="mini-title">{currentSong.title}</h4>
+            <p className="mini-artist">{currentSong.artist}</p>
+          </div>
+        </div>
 
-      <div className="mini-controls">
-        <button className="control-btn" onClick={prevSong} title="Previous">
-          <SkipBack size={20} />
-        </button>
-        <button className="control-btn play-btn" onClick={togglePlay} title="Play/Pause">
-          {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-        </button>
-        <button className="control-btn" onClick={nextSong} title="Next">
-          <SkipForward size={20} />
-        </button>
-        <button className="control-btn expand-btn" onClick={onExpand} title="Expand">
-          <Maximize2 size={18} />
-        </button>
+        <div className="mini-actions-group">
+          <button className="mini-action-btn" onClick={(e) => { e.stopPropagation(); prevSong(); }} aria-label="Previous">
+            <SkipBack size={22} fill="currentColor" />
+          </button>
+          
+          <button className="mini-play-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? "Pause" : "Play"}>
+            {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
+          </button>
+          
+          <button className="mini-action-btn" onClick={(e) => { e.stopPropagation(); nextSong(); }} aria-label="Next">
+            <SkipForward size={22} fill="currentColor" />
+          </button>
+
+          <button className="mini-expand-btn mobile-hide" onClick={(e) => { e.stopPropagation(); onExpand(); }} aria-label="Expand">
+            <Maximize2 size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+

@@ -4,63 +4,70 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Premium Dark Futuristic Theme */
+  /* Premium Dark Futuristic Theme - Solid Charcoal */
   --bg-base: #000000;
-  --bg-surface: rgba(15, 15, 20, 0.4);
-  --bg-surface-hover: rgba(25, 25, 35, 0.6);
+  --bg-surface: rgba(18, 18, 22, 0.98);
+  --bg-surface-hover: rgba(28, 28, 35, 1);
+  --bg-card: rgba(12, 12, 15, 1);
   --primary: #00e5ff;
-  --primary-glow: rgba(0, 229, 255, 0.6);
+  --primary-glow: rgba(0, 229, 255, 0.4);
   --adaptive-color: var(--primary);
   --text-main: #ffffff;
   --text-muted: #8892b0;
   --warning: #ff2a55;
-  --warning-glow: rgba(255, 42, 85, 0.7);
-  --border-light: rgba(255, 255, 255, 0.05);
-  --glass-blur: blur(24px);
+  --warning-glow: rgba(255, 42, 85, 0.5);
+  --border-light: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(20px);
   --font-body: 'Inter', sans-serif;
   --font-heading: 'Outfit', sans-serif;
+  
+  /* Android Safe Area Constants */
+  --safe-bottom: 24px;
+  --bottom-nav-height: 72px;
+  --mini-player-height: 76px;
+  --gap: 12px;
 }
 
 [data-theme="crimson-night"] {
   --bg-base: #0a0505;
-  --bg-surface: rgba(30, 20, 20, 0.6);
-  --bg-surface-hover: rgba(45, 25, 25, 0.8);
+  --bg-surface: rgba(28, 15, 15, 0.98);
+  --bg-surface-hover: rgba(45, 25, 25, 1);
   --primary: #ff003c;
-  --primary-glow: rgba(255, 0, 60, 0.5);
+  --primary-glow: rgba(255, 0, 60, 0.35);
 }
 
 [data-theme="purple-wave"] {
   --bg-base: #08030d;
-  --bg-surface: rgba(25, 15, 40, 0.6);
-  --bg-surface-hover: rgba(40, 25, 60, 0.8);
+  --bg-surface: rgba(22, 12, 35, 0.98);
+  --bg-surface-hover: rgba(40, 25, 60, 1);
   --primary: #b026ff;
-  --primary-glow: rgba(176, 38, 255, 0.5);
+  --primary-glow: rgba(176, 38, 255, 0.35);
 }
 
 [data-theme="emerald-pulse"] {
   --bg-base: #030a06;
-  --bg-surface: rgba(15, 30, 20, 0.6);
-  --bg-surface-hover: rgba(25, 45, 30, 0.8);
+  --bg-surface: rgba(12, 25, 18, 0.98);
+  --bg-surface-hover: rgba(25, 45, 30, 1);
   --primary: #00ff66;
-  --primary-glow: rgba(0, 255, 102, 0.5);
+  --primary-glow: rgba(0, 255, 102, 0.35);
 }
 
 [data-theme="sunset-neon"] {
   --bg-base: #0a0603;
-  --bg-surface: rgba(30, 20, 15, 0.6);
-  --bg-surface-hover: rgba(45, 30, 25, 0.8);
+  --bg-surface: rgba(25, 18, 12, 0.98);
+  --bg-surface-hover: rgba(45, 30, 25, 1);
   --primary: #ff5e00;
-  --primary-glow: rgba(255, 94, 0, 0.5);
+  --primary-glow: rgba(255, 94, 0, 0.35);
 }
 
 [data-theme="minimal-dark"] {
-  --bg-base: #0f0f11;
-  --bg-surface: rgba(25, 25, 28, 0.8);
-  --bg-surface-hover: rgba(40, 40, 45, 0.9);
+  --bg-base: #0a0a0c;
+  --bg-surface: rgba(28, 28, 32, 0.98);
+  --bg-surface-hover: rgba(40, 40, 45, 1);
   --primary: #e0e0e0;
-  --primary-glow: rgba(224, 224, 224, 0.2);
-  --border-light: rgba(255, 255, 255, 0.03);
-  --glass-blur: blur(8px);
+  --primary-glow: rgba(224, 224, 224, 0.15);
+  --border-light: rgba(255, 255, 255, 0.05);
+  --glass-blur: blur(12px);
 }
 
 /* Animations Variables */
@@ -94,21 +101,22 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Utility Classes */
 
-/* Base Glass Panel Refinement */
+/* Base Glass Panel Refinement - More Solid for Premium Feel */
 .glass-panel {
   background: var(--bg-surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-light);
-  border-radius: 16px;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
   transition: all var(--transition-normal);
 }
 
 @media (max-width: 768px) {
   .glass-panel {
-    background: var(--bg-surface-mobile);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--bg-surface); /* Keep it solid on mobile too */
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
   }
 }
 
@@ -120,7 +128,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .glow-effect {
-  box-shadow: 0 0 20px var(--primary-glow);
+  box-shadow: 0 0 25px var(--primary-glow);
 }
 
 button {
@@ -129,18 +137,26 @@ button {
   color: inherit;
   font-family: inherit;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+button:active {
+  transform: scale(0.95);
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.2);
+  background: rgba(0,0,0,0.1);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-surface-hover);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);

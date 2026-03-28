@@ -44,35 +44,43 @@ export const Home: React.FC = () => {
             return (
               <div 
                 key={song.id} 
-                className={`music-card glass-panel song-card-glow ${isPlaying ? 'playing' : ''}`} 
+                className={`music-card glass-panel ${isPlaying ? 'playing active-glow' : ''}`} 
                 onClick={() => {
                   const globalIdx = library.findIndex(s => s.id === song.id);
                   playSong(globalIdx, library);
                 }}
               >
-                {/* Top Row: New Badge & Duration */}
-                {isRecent(song.addedAt) && <div className="badge-new">NEW</div>}
-                <div className="card-duration">{formatDuration(song.duration)}</div>
-
-                {/* Center Content: Music Icon / Cover Art */}
-                <div className="card-art">
+                {/* Image / Art Area */}
+                <div className="card-art-container">
                   {song.coverArt ? (
-                    <img src={song.coverArt} alt={song.title} />
+                    <img src={song.coverArt} alt={song.title} className="card-art-img" />
                   ) : (
-                    <div className="card-fallback-icon">
-                      <Music size={40} />
+                    <div className="card-art-placeholder">
+                      <Music size={32} />
                     </div>
                   )}
+                  
+                  {/* Overlay Badges */}
+                  <div className="card-overlays">
+                    {isRecent(song.addedAt) && <span className="badge-new">NEW</span>}
+                    <span className="card-duration-tag">{formatDuration(song.duration)}</span>
+                  </div>
+
+                  {/* Play Overlay (Visible on Hover/Playing) */}
+                  <div className={`card-play-overlay ${isPlaying ? 'visible' : ''}`}>
+                    <div className="play-pulse-icon" />
+                  </div>
                 </div>
 
-                {/* Bottom Content: Info */}
-                <div className="card-info">
-                   <h3 title={song.title}>{song.title}</h3>
-                   <p title={song.artist}>{song.artist}</p>
+                {/* Info Area */}
+                <div className="card-details">
+                   <h3 className="card-title" title={song.title}>{song.title}</h3>
+                   <p className="card-subtitle" title={song.artist}>{song.artist}</p>
                 </div>
               </div>
             );
           })}
+
         </div>
       </section>
     );
@@ -107,8 +115,11 @@ export const Home: React.FC = () => {
   return (
     <div className="view-container">
       <header className="view-header">
-        <h1>{getTimeGreeting()}</h1>
-        <p className="text-muted">Your futuristic music hub</p>
+        <div className="view-header-top">
+          <h1>{getTimeGreeting()}</h1>
+          <p className="text-muted">Your futuristic music hub</p>
+          <p className="venky-tagline">Built by Venky ❤️</p>
+        </div>
       </header>
 
       <div className="dashboard-grid">

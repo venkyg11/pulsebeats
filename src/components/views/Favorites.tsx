@@ -61,14 +61,16 @@ export const Favorites: React.FC = () => {
                   e.stopPropagation();
                   toggleFavorite(song.id);
                   setAnimatingId(song.id);
-                  setTimeout(() => setAnimatingId(null), 400);
+                  setTimeout(() => setAnimatingId(null), 600);
                 }}
                 style={{ background: 'transparent', border: 'none', padding: '8px', cursor: 'pointer' }}
               >
-                <Heart 
-                  size={20} 
-                  className={`heart-icon active ${animatingId === song.id ? 'heart-pop' : ''}`} 
-                />
+                <div className={`heart-pop-wrapper ${animatingId === song.id ? 'heart-pop' : ''}`}>
+                  <Heart 
+                    size={20} 
+                    className={`heart-icon active`} 
+                  />
+                </div>
               </button>
 
               <div className="list-duration">

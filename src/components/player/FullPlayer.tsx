@@ -69,14 +69,16 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
               onClick={() => {
                 toggleFavorite(currentSong!.id);
                 setIsHeartAnimating(true);
-                setTimeout(() => setIsHeartAnimating(false), 400);
+                setTimeout(() => setIsHeartAnimating(false), 600);
               }}
               aria-label="Favorite"
             >
-               <Heart 
-                 size={24} 
-                 className={`heart-icon ${currentSong.isFavorite ? 'active' : ''} ${isHeartAnimating ? 'heart-pop' : ''}`} 
-               />
+               <div className={`heart-pop-wrapper ${isHeartAnimating ? 'heart-pop' : ''}`}>
+                 <Heart 
+                   size={24} 
+                   className={`heart-icon ${currentSong.isFavorite ? 'active' : ''}`} 
+                 />
+               </div>
             </button>
 
             <div className="fp-text-center">

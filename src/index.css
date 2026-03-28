@@ -94,13 +94,22 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Utility Classes */
 
+/* Base Glass Panel Refinement */
 .glass-panel {
   background: var(--bg-surface);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-light);
   border-radius: 16px;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: all var(--transition-normal);
+}
+
+@media (max-width: 768px) {
+  .glass-panel {
+    background: var(--bg-surface-mobile);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
 }
 
 .text-gradient {

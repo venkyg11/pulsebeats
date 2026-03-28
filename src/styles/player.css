@@ -11,10 +11,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  z-index: 90;
+  z-index: 100;
   border-radius: 16px;
   cursor: pointer;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  background: var(--bg-surface-mobile);
+  border: 1px solid var(--border-light);
   animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -121,9 +123,16 @@
   display: flex;
   flex-direction: column;
   padding: 32px 10%;
-  background: rgba(5, 5, 5, 0.85);
+  background: #000000; /* Solid black base for mobile focus */
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
+}
+
+@media (max-width: 768px) {
+  .full-player {
+    padding: 24px 20px;
+    background: #000000; /* Ensure total separation from Home content */
+  }
 }
 
 .slide-up {
@@ -155,10 +164,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
+  overflow-y: auto;
+  padding-bottom: 40px;
 }
 
 .fp-art-container {
@@ -202,25 +213,33 @@
   text-align: center;
   margin-bottom: 32px;
   width: 100%;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.fp-title-artist h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 20px;
+}
+
+.fp-artist-text {
+  font-size: 16px;
+  color: var(--primary);
+  opacity: 0.8;
+  font-weight: 500;
 }
 
 .fp-equalizer {
   width: 100%;
   max-width: 320px;
-  margin: 0 auto;
-}
-
-.fp-info h2 {
-  font-size: 32px;
-  margin-bottom: 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.fp-info p {
-  font-size: 18px;
-  color: var(--text-muted);
+  margin: 16px auto;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .fp-controls-main {
@@ -292,10 +311,48 @@
   background: var(--primary);
   color: var(--bg-base);
   display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
-.main-btns .play-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 30px var(--primary-glow);
+
+.fp-extra-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 40px;
+  margin-top: 24px;
+}
+
+.action-btn-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  border: 1px solid var(--border-light);
+}
+
+.action-btn-circle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  border-color: var(--primary);
+}
+
+.fp-volume-wrapper {
+  position: relative;
+}
+
+.floating-vol-popup {
+  position: absolute;
+  bottom: 60px;
+  right: -6px;
+  height: 200px !important;
+  width: 60px !important;
+  animation: floatReveal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 /* VERTICAL LIQUID VOLUME BOOSTER */

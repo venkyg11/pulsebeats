@@ -170,7 +170,7 @@
 }
 
 .fab-button {
-  position: absolute;
+  position: fixed;
   bottom: calc(var(--bottom-nav-height) + 24px);
   right: 24px;
   width: 56px;
@@ -181,7 +181,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 120;
   transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s, box-shadow 0.2s;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border-light);
@@ -189,14 +189,15 @@
 }
 
 .floating-settings-popup {
-  position: absolute;
+  position: fixed;
   bottom: calc(var(--bottom-nav-height) + var(--mini-player-height) + 40px);
   right: 24px;
   width: 320px;
+  max-width: calc(100vw - 48px);
   border-radius: 20px;
   padding: 20px;
-  z-index: 99;
-  background: rgba(10, 10, 15, 0.7);
+  z-index: 130;
+  background: rgba(10, 10, 15, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
@@ -261,7 +262,15 @@
   flex: 1;
   overflow-y: auto;
   border-radius: 16px;
-  padding: 16px 16px 180px 16px;
+  padding: 16px 16px 200px 16px; /* High bottom padding for mobile safe area */
+  position: relative;
+  z-index: 10;
+}
+
+@media (max-width: 768px) {
+  .scroll-container {
+    padding: 12px 12px 220px 12px;
+  }
 }
 
 /* BOTTOM NAV Primary */

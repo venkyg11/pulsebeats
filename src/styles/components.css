@@ -5,6 +5,12 @@
   margin: 0 auto;
 }
 
+@media (max-width: 768px) {
+  .view-container {
+    padding: 20px 16px;
+  }
+}
+
 .view-header {
   margin-bottom: 40px;
 }
@@ -58,6 +64,13 @@
   margin-bottom: 24px;
 }
 
+@media (max-width: 768px) {
+  .section-title {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -81,6 +94,15 @@
   gap: 16px;
   position: relative;
   border: 1px solid var(--border-light);
+  background: var(--bg-surface);
+}
+
+@media (max-width: 768px) {
+  .music-card {
+    background: rgba(15, 15, 20, 0.9); /* More opaque on mobile */
+    padding: 12px;
+    gap: 12px;
+  }
 }
 
 .music-card:hover {
@@ -213,6 +235,16 @@
   background: var(--bg-surface-hover);
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
   transform: translateX(4px);
+}
+
+@media (max-width: 768px) {
+  .list-item {
+    background: rgba(15, 15, 20, 0.6);
+    margin-bottom: 4px;
+  }
+  .list-album {
+    display: none;
+  }
 }
 
 .list-item:hover .list-duration {

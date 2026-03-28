@@ -80,13 +80,15 @@ export const Layout: React.FC = () => {
       )}
 
       {/* Floating Action Button for Settings */}
-      <button 
-        className={`fab-button glow-effect ${currentSong ? 'fab-lifted' : ''}`}
-        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-        title="Settings & Import"
-      >
-        {isSettingsOpen ? <Settings size={24} /> : <Plus size={24} />}
-      </button>
+      {!isFullPlayerOpen && (
+        <button 
+          className={`fab-button glow-effect ${currentSong ? 'fab-lifted' : ''}`}
+          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+          title="Settings & Import"
+        >
+          {isSettingsOpen ? <Settings size={24} /> : <Plus size={24} />}
+        </button>
+      )}
     </div>
   );
 };

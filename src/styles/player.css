@@ -169,14 +169,15 @@
   max-width: 600px;
   margin: 0 auto;
   overflow-y: auto;
-  padding-bottom: 40px;
+  padding-top: 60px; /* More breathing space at top */
+  padding-bottom: 60px;
 }
 
 .fp-art-container {
   width: 320px;
   height: 320px;
   border-radius: 20px;
-  margin-bottom: 40px;
+  margin-bottom: 60px; /* Increased gap */
   position: relative;
   transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -224,7 +225,7 @@
   justify-content: space-between;
   width: 100%;
   padding: 0 16px;
-  margin: 32px 0;
+  margin: 48px 0; /* Expanded breathing space */
   gap: 16px;
 }
 
@@ -262,7 +263,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 32px; /* Balanced spacing */
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--text-muted);

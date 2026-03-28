@@ -3,8 +3,8 @@
  * - mm:ss (if < 1 hour)
  * - hh:mm:ss (if >= 1 hour)
  */
-export const formatDuration = (seconds: number): string => {
-  if (!seconds || isNaN(seconds)) return '0:00';
+export const formatDuration = (seconds?: number | null): string => {
+  if (seconds === undefined || seconds === null || isNaN(seconds) || seconds === 0) return '--:--';
   
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

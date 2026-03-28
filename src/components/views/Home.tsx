@@ -112,7 +112,7 @@ export const Home: React.FC = () => {
       </header>
 
       <div className="dashboard-grid">
-        {library.length > 0 && permissionStatus === 'prompt' && (
+        {library.length === 0 && permissionStatus === 'prompt' && (
           <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)', marginBottom: '24px', padding: '16px' }}>
             <div className="flex-between">
               <div>

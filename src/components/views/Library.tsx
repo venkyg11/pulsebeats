@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useFiles } from '../../context/FileContext';
 import { usePlayer } from '../../context/PlayerContext';
-import { Play, Search, Music, Heart } from 'lucide-react';
+import { Play, Search, Music, Heart, AlertTriangle } from 'lucide-react';
 
 export const Library: React.FC = () => {
   const { library, isScanning, toggleFavorite, permissionStatus, verifyLibrary, isFileSystemApiSupported } = useFiles();
@@ -15,8 +15,22 @@ export const Library: React.FC = () => {
     song.album.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const hasLegacyData = !isFileSystemApiSupported && library.some(song => !song.fileBlob && song.fileHandle);
+
   return (
     <div className="view-container">
+      {hasLegacyData && (
+        <div className="glass-panel" style={{ border: '1px solid var(--primary)', background: 'rgba(255, 100, 0, 0.1)', marginBottom: '24px', padding: '16px', borderRadius: '12px' }}>
+          <div className="flex-start" style={{ gap: '16px' }}>
+            <AlertTriangle className="text-primary" size={24} style={{ color: '#ff6400' }} />
+            <div>
+              <h3 style={{ color: '#ff6400', marginBottom: '4px' }}>Legacy Songs Detected</h3>
+              <p className="text-muted" style={{ fontSize: '14px' }}>Some songs were imported on a different device and cannot play here. Please <strong>Reset Library</strong> in Settings and re-import your music.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="view-header flex-between">
         <div className="view-header-info">
            <h1 className="text-gradient">Your Library</h1>

@@ -63,13 +63,31 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return new Promise((resolve) => {
       const audio = new Audio();
       const url = URL.createObjectURL(file);
+      
+      // Set a timeout to prevent hanging on Android if metadata never loads
+      const timeout = setTimeout(() => {
+        URL.revokeObjectURL(url);
+        resolve(0);
+      }, 2000);
+
       audio.src = url;
       audio.preload = 'metadata';
+      
       audio.onloadedmetadata = () => {
+        clearTimeout(timeout);
+        const duration = audio.duration;
         URL.revokeObjectURL(url);
-        resolve(audio.duration || 0);
+        
+        // Handle Android/Chrome bug where duration is Infinity initially
+        if (duration === Infinity || isNaN(duration) || duration === 0) {
+          resolve(0);
+        } else {
+          resolve(duration);
+        }
       };
+      
       audio.onerror = () => {
+        clearTimeout(timeout);
         URL.revokeObjectURL(url);
         resolve(0);
       };

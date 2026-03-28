@@ -79,8 +79,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const onLoadedMetadata = () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      
       const newDuration = audio.duration;
-      if (!isNaN(newDuration)) {
+      // Android/Chrome bug: duration might be Infinity or 0 for Blobs initially
+      if (!isNaN(newDuration) && newDuration > 0 && newDuration !== Infinity) {
         setDuration(newDuration);
         
         const song = songRef.current;
@@ -88,6 +92,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const updatedSong = { ...song, duration: newDuration };
           saveSong(updatedSong);
         }
+      } else if (songRef.current?.duration) {
+        // Fallback to DB duration for UI consistency on Android
+        setDuration(songRef.current.duration);
       }
     };
 
@@ -137,7 +144,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [volume, isMuted]);
 
   const loadAndPlayFile = async (song: SongMetadata) => {
-    // 1. Direct play from file reference without ANY system popup
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // 1. Direct play from file reference
     const file = await getFileForSong(song);
     
     if (!file) {
@@ -147,22 +157,38 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-       const objectURL = URL.createObjectURL(file);
-       if (audioRef.current) {
-         audioRef.current.src = objectURL;
-         
-         if (song.lastProgress && song.lastProgress < song.duration - 2) {
-            audioRef.current.currentTime = song.lastProgress;
-            setProgress(song.lastProgress);
-         } else {
-            setProgress(0);
-         }
-         
-         audioRef.current.play();
-         setIsPlaying(true);
+       // Revoke old URL to prevent memory leaks
+       if (audio.src && audio.src.startsWith('blob:')) {
+         URL.revokeObjectURL(audio.src);
        }
+
+       const objectURL = URL.createObjectURL(file);
+       audio.src = objectURL;
+       
+       // Explicitly load for Android reliability
+       audio.load();
+       
+       if (song.lastProgress && song.lastProgress < song.duration - 2) {
+          audio.currentTime = song.lastProgress;
+          setProgress(song.lastProgress);
+       } else {
+          setProgress(0);
+       }
+       
+       // Catch play promise to avoid unhandled rejection in background
+       const playPromise = audio.play();
+       if (playPromise !== undefined) {
+         playPromise.catch(error => {
+           console.error("Playback interrupted or failed", error);
+           if (error.name === 'NotAllowedError') {
+             console.log("Audio play blocked: needs user interaction context.");
+             setIsPlaying(false);
+           }
+         });
+       }
+       setIsPlaying(true);
     } catch(e) {
-       console.error("Playback failed", e);
+       console.error("Playback failed setup", e);
        setIsPlaying(false);
     }
   };

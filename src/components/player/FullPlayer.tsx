@@ -45,29 +45,27 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
         <div className="fp-header-spacer" />
       </div>
 
-      <div className="fp-content">
-        {/* 1. Album Art Section */}
-        <div className={`fp-art-container ${isPlaying ? 'playing' : ''}`}>
+      <div className="fp-main-content">
+        {/* 1. Square Album Art Section */}
+        <div className={`fp-art-wrapper ${isPlaying ? 'playing' : ''}`}>
            {currentSong.coverArt ? (
-             <img src={currentSong.coverArt} className="fp-art glow-effect" alt="cover" />
+             <img src={currentSong.coverArt} className="fp-art-image" alt="cover" />
            ) : (
-             <div className="fp-art fp-placeholder card-fallback-icon" style={{ borderRadius: '20px' }}>
-                <Music size={64} />
+             <div className="fp-art-image fp-placeholder card-fallback-icon">
+                <Music size={80} />
              </div>
            )}
         </div>
 
-        {/* 2. Visualizer Section (Equalizer) */}
-        <div className="fp-equalizer">
-          <div className="fp-equalizer-wrapper">
-            <Equalizer />
-          </div>
+        {/* 2. Equalizer Section Directly Below Art */}
+        <div className="fp-eq-container">
+           <Equalizer />
         </div>
 
-        {/* 3. Song Info Section with Integrated Buttons */}
-        <div className="fp-title-row">
+        {/* 3. Song Info Row: [Heart] [Title+Artist] [Speaker] */}
+        <div className="fp-info-row">
            <button 
-              className="action-btn-circle" 
+              className="fp-side-btn heart-toggle" 
               onClick={() => {
                 toggleFavorite(currentSong!.id);
                 setIsHeartAnimating(true);
@@ -81,20 +79,18 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
                />
             </button>
 
-            <div className="fp-info">
-              <div className="fp-title-artist">
-                <h2>{currentSong.title}</h2>
-                <p className="fp-artist-text">{currentSong.artist}</p>
-              </div>
+            <div className="fp-text-center">
+              <h2>{currentSong.title}</h2>
+              <p>{currentSong.artist}</p>
             </div>
 
-            <div className="fp-volume-wrapper">
+            <div className="fp-vol-group">
                <button 
-                className="action-btn-circle" 
-                onClick={() => setShowVolume(!showVolume)}
-                aria-label="Volume"
-              >
-                 {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+                  className="fp-side-btn speaker-toggle" 
+                  onClick={() => setShowVolume(!showVolume)}
+                  aria-label="Volume"
+                >
+                   {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
                </button>
                
                {showVolume && (
@@ -119,51 +115,54 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
             </div>
         </div>
 
-        {/* 4. Controls & Timeline Section */}
-        <div className="fp-controls-main">
-          {/* Timeline Row */}
-          <div className="timeline">
-            <span className="time-display current-time">
-              {formatTime(progress)}
-            </span>
-            <div className="slider-container">
-              <input 
-                type="range" 
-                min={0} 
-                max={duration || 100} 
-                value={progress}
-                onChange={(e) => seekTo(Number(e.target.value))}
-                className="timeline-slider"
-                style={{
-                  background: `linear-gradient(to right, var(--adaptive-color) ${(progress / (duration || 0.1)) * 100}%, rgba(255, 255, 255, 0.1) ${(progress / (duration || 0.1)) * 100}%)`
-                }}
-              />
-            </div>
-            <span className="time-display total-time">{formatTime(duration)}</span>
+        {/* 4. Full-Width Progress Row */}
+        <div className="fp-progress-row">
+          <span className="time-label">{formatTime(progress)}</span>
+          <div className="slider-wrapper">
+            <input 
+              type="range" 
+              min={0} 
+              max={duration || 100} 
+              value={progress}
+              onChange={(e) => seekTo(Number(e.target.value))}
+              className="fp-progress-slider"
+              style={{
+                background: `linear-gradient(to right, var(--adaptive-color) ${(progress / (duration || 0.1)) * 100}%, rgba(255, 255, 255, 0.1) ${(progress / (duration || 0.1)) * 100}%)`
+              }}
+            />
           </div>
+          <span className="time-label">{formatTime(duration)}</span>
+        </div>
 
-          {/* Main Action Buttons */}
-          <div className="main-btns">
-            <button 
-              className={`ctrl-btn ${isShuffle ? 'active-mode' : ''}`} 
-              onClick={toggleShuffle}
-              title="Shuffle"
-            >
-              <Shuffle size={20} />
-            </button>
-            <button className="ctrl-btn" onClick={prevSong} title="Previous"><SkipBack size={32} /></button>
-            <button className="ctrl-btn play-btn glow-effect" onClick={togglePlay} title={isPlaying ? "Pause" : "Play"}>
-              {isPlaying ? <Pause size={40} /> : <Play size={40} />}
-            </button>
-            <button className="ctrl-btn" onClick={nextSong} title="Next"><SkipForward size={32} /></button>
-            <button 
-              className={`ctrl-btn ${repeatMode !== 'off' ? 'active-mode' : ''}`} 
-              onClick={toggleRepeat}
-              title="Repeat"
-            >
-              <Repeat size={20} />
-            </button>
-          </div>
+        {/* 5. Playback Controls Row */}
+        <div className="fp-controls-row">
+          <button 
+            className={`fp-ctrl ${isShuffle ? 'active' : ''}`} 
+            onClick={toggleShuffle}
+            title="Shuffle"
+          >
+            <Shuffle size={20} />
+          </button>
+          
+          <button className="fp-ctrl" onClick={prevSong} title="Previous">
+            <SkipBack size={32} />
+          </button>
+          
+          <button className="fp-play-pause glow-effect" onClick={togglePlay} title={isPlaying ? "Pause" : "Play"}>
+            {isPlaying ? <Pause size={42} /> : <Play size={42} />}
+          </button>
+          
+          <button className="fp-ctrl" onClick={nextSong} title="Next">
+            <SkipForward size={32} />
+          </button>
+          
+          <button 
+            className={`fp-ctrl ${repeatMode !== 'off' ? 'active' : ''}`} 
+            onClick={toggleRepeat}
+            title="Repeat"
+          >
+            <Repeat size={20} />
+          </button>
         </div>
       </div>
     </div>

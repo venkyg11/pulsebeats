@@ -89,7 +89,7 @@ export const FloatingSettings: React.FC<FloatingSettingsProps> = ({ onClose }) =
         disabled={isScanning}
       >
         <FolderSearch size={20} />
-        {isScanning ? 'Importing...' : 'Import Music Folder'}
+        {isScanning ? 'Importing...' : 'Import Music'}
       </button>
     </div>
   );

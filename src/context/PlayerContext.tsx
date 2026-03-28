@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { SongMetadata } from '../utils/db';
 import { updateSongProgress } from '../utils/db';
+import { useFiles } from './FileContext';
 
 interface PlayerContextType {
   queue: SongMetadata[];
@@ -31,6 +32,7 @@ interface PlayerContextType {
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { getFileForSong, permissionStatus } = useFiles();
   const [queue, setQueue] = useState<SongMetadata[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -48,26 +50,29 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     audioRef.current = new Audio();
-    audioRef.current.addEventListener('timeupdate', handleTimeUpdate);
-    audioRef.current.addEventListener('ended', handleEnded);
-    audioRef.current.addEventListener('loadedmetadata', handleLoadedMeta);
+    audioRef.current.addEventListener('timeupdate', () => {
+      if (audioRef.current) setProgress(audioRef.current.currentTime);
+    });
+    audioRef.current.addEventListener('loadedmetadata', () => {
+      if (audioRef.current) setDuration(audioRef.current.duration);
+    });
     
     return () => {
       audioRef.current?.pause();
-      audioRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
-      audioRef.current?.removeEventListener('ended', handleEnded);
-      audioRef.current?.removeEventListener('loadedmetadata', handleLoadedMeta);
     };
-  // eslint-disable-next-line
   }, []);
 
-  const handleTimeUpdate = () => {
-    if (audioRef.current) setProgress(audioRef.current.currentTime);
-  };
-
-  const handleLoadedMeta = () => {
-    if (audioRef.current) setDuration(audioRef.current.duration);
-  };
+  const nextSong = useCallback(() => {
+    if (queue.length === 0) return;
+    setCurrentIndex((prev) => {
+      let next = prev + 1;
+      if (next >= queue.length) {
+        if (repeatMode === 'all') next = 0;
+        else return prev;
+      }
+      return next;
+    });
+  }, [queue.length, repeatMode]);
 
   const handleEnded = useCallback(() => {
     if (repeatMode === 'one') {
@@ -76,41 +81,37 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } else {
       nextSong();
     }
-  // eslint-disable-next-line
-  }, [repeatMode]);
+  }, [repeatMode, nextSong]);
 
   useEffect(() => {
     if (audioRef.current) {
-      handleEndedRef.current = handleEnded;
-      audioRef.current.onended = () => handleEndedRef.current();
+      audioRef.current.onended = handleEnded;
     }
   }, [handleEnded]);
-  
-  const handleEndedRef = useRef(handleEnded);
 
   useEffect(() => {
     if (audioRef.current) {
       let actualVol = isMuted ? 0 : volume / 100;
-      // For booster (volume > 100), native audio API tops at 1.0
-      // Implementing real audio gain booster requires Web Audio API.
-      // For simplicity/safety, we visually boost it, and cap native to 1.
       if (actualVol > 1) actualVol = 1;
       audioRef.current.volume = actualVol;
     }
   }, [volume, isMuted]);
 
-  // Handle actual file request
   const loadAndPlayFile = async (song: SongMetadata) => {
-    if (!song.fileHandle) return;
+    // 1. Direct play from file reference without ANY system popup
+    const file = await getFileForSong(song);
+    
+    if (!file) {
+      console.warn('Playback failed: No file access. Ensure the library is verified.');
+      setIsPlaying(false);
+      return;
+    }
+
     try {
-       const isVerif = await song.fileHandle.requestPermission({ mode: 'read' });
-       if (isVerif !== 'granted') return;
-       const file = await song.fileHandle.getFile();
        const objectURL = URL.createObjectURL(file);
        if (audioRef.current) {
          audioRef.current.src = objectURL;
          
-         // Resume if possible
          if (song.lastProgress && song.lastProgress < song.duration - 2) {
             audioRef.current.currentTime = song.lastProgress;
             setProgress(song.lastProgress);
@@ -122,21 +123,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
          setIsPlaying(true);
        }
     } catch(e) {
-       console.error("Failed to load/play file", e);
+       console.error("Playback failed", e);
+       setIsPlaying(false);
     }
   };
 
   useEffect(() => {
     if (currentSong) {
-      setProgress(0);
       loadAndPlayFile(currentSong);
     } else {
       audioRef.current?.pause();
       setIsPlaying(false);
     }
-  }, [currentIndex]); // Only on index change, not currentSong deep equal
+  }, [currentIndex]); 
 
-  // Persist progress periodically
   useEffect(() => {
     if (isPlaying && currentSong && progress > 5) {
       const interval = setInterval(() => {
@@ -152,6 +152,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
+      // If we don't have permission, we still shouldn't pop up here.
+      if (permissionStatus !== 'granted') return;
+      
       audioRef.current.play();
       setIsPlaying(true);
     }
@@ -165,18 +168,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (audioRef.current && isPlaying) {
       audioRef.current.pause();
     }
-  };
-
-  const nextSong = () => {
-    if (queue.length === 0) return;
-    setCurrentIndex((prev) => {
-      let next = prev + 1;
-      if (next >= queue.length) {
-        if (repeatMode === 'all') next = 0;
-        else return prev; // Stop playing
-      }
-      return next;
-    });
   };
 
   const prevSong = () => {

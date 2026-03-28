@@ -1,32 +1,59 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as musicMetadata from 'music-metadata-browser';
 import type { SongMetadata } from '../utils/db';
-import { saveSong, getSongs, clearSongs, toggleSongFavorite } from '../utils/db';
+import { saveSong, getSongs, clearSongs, toggleSongFavorite, saveSetting, getSetting } from '../utils/db';
 
 interface FileContextType {
   library: SongMetadata[];
   isScanning: boolean;
+  permissionStatus: 'granted' | 'prompt' | 'denied';
   scanDirectory: () => Promise<void>;
   rescanAll: () => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
+  verifyLibrary: () => Promise<void>;
+  getFileForSong: (song: SongMetadata) => Promise<File | null>;
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined);
 
 const supportedExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'];
 
+// Session cache for File objects to avoid repeated permission prompts
+const fileCache = new Map<string, File>();
+
 export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [library, setLibrary] = useState<SongMetadata[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'prompt' | 'denied'>('prompt');
+  const [rootHandle, setRootHandle] = useState<any>(null);
+
+  const loadSaved = useCallback(async () => {
+    const saved = await getSongs();
+    const storedHandle = await getSetting('library_root_handle');
+    
+    if (storedHandle) {
+      setRootHandle(storedHandle);
+      // Check permission status
+      const status = await storedHandle.queryPermission({ mode: 'read' });
+      setPermissionStatus(status);
+    }
+    
+    setLibrary(saved.sort((a, b) => b.addedAt - a.addedAt));
+  }, []);
 
   useEffect(() => {
-    // Load from IndexedDB on startup
-    const loadSaved = async () => {
-      const saved = await getSongs();
-      setLibrary(saved.sort((a, b) => b.addedAt - a.addedAt));
-    };
     loadSaved();
-  }, []);
+  }, [loadSaved]);
+
+  const verifyLibrary = async () => {
+    if (!rootHandle) return;
+    try {
+      const status = await rootHandle.requestPermission({ mode: 'read' });
+      setPermissionStatus(status);
+    } catch (err) {
+      console.error('Permission request failed', err);
+    }
+  };
 
   const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
@@ -57,8 +84,6 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (metadata.common.picture && metadata.common.picture.length > 0) {
         const pic = metadata.common.picture[0];
         const blob = new Blob([new Uint8Array(pic.data)], { type: pic.format });
-        // Generate blob URL, wait... we shouldn't save giant base64 strings if we have tons of files.
-        // It's better to store blob arrays in IndexedDB or base64. idb supports Blobs.
         const base64String = await new Promise<string>((resolve, reject) => {
            const reader = new FileReader();
            reader.onloadend = () => resolve(reader.result as string);
@@ -75,13 +100,11 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         album: metadata.common.album || 'Unknown Album',
         duration,
         fileName: file.name,
-        fileHandle, // Save the handle so we can request permission later if needed
+        fileHandle,
         coverArt,
         addedAt: Date.now()
       };
     } catch (e) {
-      console.error('Failed to parse', file.name, e);
-      // Fallback
       const duration = await getAudioDuration(file);
       return {
          id: file.name + '-' + file.size,
@@ -118,6 +141,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // @ts-ignore - native API
       const dirHandle = await window.showDirectoryPicker();
+      await saveSetting('library_root_handle', dirHandle);
+      setRootHandle(dirHandle);
+      setPermissionStatus('granted');
+      
       setIsScanning(true);
       const newSongs: SongMetadata[] = [];
       await processDirectory(dirHandle, newSongs);
@@ -134,8 +161,33 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const rescanAll = async () => {
     setIsScanning(true);
     await clearSongs();
+    await saveSetting('library_root_handle', null);
+    setRootHandle(null);
+    setPermissionStatus('prompt');
     setLibrary([]);
     setIsScanning(false);
+  };
+
+  const getFileForSong = async (song: SongMetadata): Promise<File | null> => {
+    // 1. Check session cache
+    if (fileCache.has(song.id)) {
+      return fileCache.get(song.id)!;
+    }
+
+    // 2. Fetch from handle
+    if (!song.fileHandle) return null;
+    try {
+      // NOTE: We don't call requestPermission here! 
+      // It should have been granted at the directory level or previously.
+      const file = await song.fileHandle.getFile();
+      fileCache.set(song.id, file);
+      return file;
+    } catch (err) {
+      console.error('Failed to get file from handle', err);
+      // If we failed due to permission, we don't popup here.
+      // The UI should show "Activate Library" based on permissionStatus.
+      return null;
+    }
   };
 
   const toggleFavorite = async (id: string) => {
@@ -146,7 +198,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <FileContext.Provider value={{ library, isScanning, scanDirectory, rescanAll, toggleFavorite }}>
+    <FileContext.Provider value={{ 
+      library, isScanning, permissionStatus, 
+      scanDirectory, rescanAll, toggleFavorite, verifyLibrary, getFileForSong 
+    }}>
       {children}
     </FileContext.Provider>
   );

@@ -6,7 +6,7 @@ import type { SongMetadata } from '../../utils/db';
 import { formatDuration } from '../../utils/format';
 
 export const Home: React.FC = () => {
-  const { library } = useFiles();
+  const { library, permissionStatus, verifyLibrary } = useFiles();
   const { playSong } = usePlayer();
 
   const getTimeGreeting = () => {
@@ -113,6 +113,24 @@ export const Home: React.FC = () => {
       </header>
 
       <div className="dashboard-grid">
+        {library.length > 0 && permissionStatus === 'prompt' && (
+          <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)' }}>
+            <div className="flex-between">
+              <div>
+                <h3 className="text-primary" style={{ marginBottom: '4px' }}>Library Activation Required</h3>
+                <p className="text-muted" style={{ fontSize: '14px' }}>Verify your music folder once to enable instant playback for this session.</p>
+              </div>
+              <button 
+                className="btn-primary" 
+                onClick={verifyLibrary}
+                style={{ width: 'auto', padding: '10px 24px', fontSize: '14px' }}
+              >
+                Activate Library
+              </button>
+            </div>
+          </div>
+        )}
+
         {library.length === 0 ? (
           <div className="empty-state glass-panel">
             <p>No songs found. Use the floating (+) button to import your local music library.</p>

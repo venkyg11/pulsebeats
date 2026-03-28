@@ -7,9 +7,9 @@ export interface SongMetadata {
   artist: string;
   album: string;
   duration: number; // in seconds
-  coverArt?: string; // object URL or base64
+  coverArt?: string; // base64 string
   fileName: string;
-  fileHandle?: any; // FileSystemFileHandle
+  fileHandle?: any; // FileSystemFileHandle or similar reference
   addedAt: number;
   lastProgress?: number; 
   lastPlayedAt?: number;
@@ -27,19 +27,26 @@ interface PulseBeatsDB extends DBSchema {
       'by-album': string;
     };
   };
+  settings: {
+    key: string;
+    value: any;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<PulseBeatsDB>> | null = null;
 
 export const initDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<PulseBeatsDB>('pulse-beats-db', 1, {
-      upgrade(db: IDBPDatabase<PulseBeatsDB>) {
-        if (!db.objectStoreNames.contains('songs')) {
+    dbPromise = openDB<PulseBeatsDB>('pulse-beats-db', 2, {
+      upgrade(db: IDBPDatabase<PulseBeatsDB>, oldVersion) {
+        if (oldVersion < 1) {
           const store = db.createObjectStore('songs', { keyPath: 'id' });
           store.createIndex('by-added', 'addedAt');
           store.createIndex('by-artist', 'artist');
           store.createIndex('by-album', 'album');
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore('settings');
         }
       },
     });
@@ -87,4 +94,14 @@ export const toggleSongFavorite = async (id: string) => {
     return song.isFavorite;
   }
   return false;
+};
+
+export const saveSetting = async (key: string, value: any) => {
+  const db = await initDB();
+  await db.put('settings', value, key);
+};
+
+export const getSetting = async (key: string): Promise<any> => {
+  const db = await initDB();
+  return await db.get('settings', key);
 };

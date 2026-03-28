@@ -4,7 +4,7 @@ import { usePlayer } from '../../context/PlayerContext';
 import { Play, Search, Music, Heart } from 'lucide-react';
 
 export const Library: React.FC = () => {
-  const { library, isScanning, toggleFavorite } = useFiles();
+  const { library, isScanning, toggleFavorite, permissionStatus, verifyLibrary } = useFiles();
   const { playSong, currentSong: activeSong } = usePlayer();
   const [searchQuery, setSearchQuery] = useState('');
   const [animatingId, setAnimatingId] = useState<string | null>(null);
@@ -32,6 +32,24 @@ export const Library: React.FC = () => {
           />
         </div>
       </header>
+
+      {library.length > 0 && permissionStatus === 'prompt' && (
+        <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)', marginBottom: '24px', padding: '16px' }}>
+          <div className="flex-between">
+            <div>
+              <h3 className="text-primary" style={{ marginBottom: '4px' }}>Library Activation Required</h3>
+              <p className="text-muted" style={{ fontSize: '14px' }}>Verify your music folder once to enable instant playback for this session.</p>
+            </div>
+            <button 
+              className="btn-primary" 
+              onClick={verifyLibrary}
+              style={{ width: 'auto', padding: '10px 24px', fontSize: '14px' }}
+            >
+              Activate Library
+            </button>
+          </div>
+        </div>
+      )}
 
       {isScanning && (
         <div className="scanning-banner glow-effect glass-panel">

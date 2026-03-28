@@ -271,6 +271,7 @@
 .fp-progress-slider {
   width: 100%;
   -webkit-appearance: none;
+  appearance: none;
   height: 6px;
   border-radius: 3px;
   outline: none;
@@ -450,9 +451,9 @@
 }
 
 .heart-icon.active {
-  color: var(--adaptive-color);
-  fill: var(--adaptive-color);
-  filter: drop-shadow(0 0 15px var(--adaptive-color));
+  color: var(--primary);
+  fill: var(--primary);
+  filter: drop-shadow(0 0 10px var(--primary-glow));
 }
 
 .heart-pop {

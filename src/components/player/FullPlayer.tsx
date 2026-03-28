@@ -64,12 +64,59 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
           </div>
         </div>
 
-        {/* 3. Song Info Section */}
-        <div className="fp-info">
-          <div className="fp-title-artist">
-            <h2>{currentSong.title}</h2>
-            <p className="fp-artist-text">{currentSong.artist}</p>
-          </div>
+        {/* 3. Song Info Section with Integrated Buttons */}
+        <div className="fp-title-row">
+           <button 
+              className="action-btn-circle" 
+              onClick={() => {
+                toggleFavorite(currentSong!.id);
+                setIsHeartAnimating(true);
+                setTimeout(() => setIsHeartAnimating(false), 400);
+              }}
+              aria-label="Favorite"
+            >
+               <Heart 
+                 size={24} 
+                 className={`heart-icon ${currentSong.isFavorite ? 'active' : ''} ${isHeartAnimating ? 'heart-pop' : ''}`} 
+               />
+            </button>
+
+            <div className="fp-info">
+              <div className="fp-title-artist">
+                <h2>{currentSong.title}</h2>
+                <p className="fp-artist-text">{currentSong.artist}</p>
+              </div>
+            </div>
+
+            <div className="fp-volume-wrapper">
+               <button 
+                className="action-btn-circle" 
+                onClick={() => setShowVolume(!showVolume)}
+                aria-label="Volume"
+              >
+                 {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+               </button>
+               
+               {showVolume && (
+                 <div className={`volume-booster-vertical floating-vol-popup ${isBoosted ? 'boosted' : ''}`}>
+                    <div className="vol-tube">
+                      <div 
+                        className={`vol-liquid ${isBoosted ? 'danger' : ''}`} 
+                        style={{ height: `${Math.min(100, volume / 2)}%` }} 
+                      />
+                      <input 
+                        type="range" 
+                        min={0} 
+                        max={200} 
+                        value={volume} 
+                        onChange={(e) => setVolumeLevel(Number(e.target.value))}
+                        className="vol-slider-overlay"
+                      />
+                    </div>
+                    <span className="vol-label">{Math.round(volume)}%</span>
+                 </div>
+               )}
+            </div>
         </div>
 
         {/* 4. Controls & Timeline Section */}
@@ -116,49 +163,6 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
             >
               <Repeat size={20} />
             </button>
-          </div>
-
-          {/* Bottom Row Actions: Like & Volume */}
-          <div className="fp-extra-actions">
-             <button 
-                className="action-btn-circle" 
-                onClick={() => {
-                  toggleFavorite(currentSong.id);
-                  setIsHeartAnimating(true);
-                  setTimeout(() => setIsHeartAnimating(false), 400);
-                }}
-              >
-                 <Heart 
-                   size={24} 
-                   className={`heart-icon ${currentSong.isFavorite ? 'active' : ''} ${isHeartAnimating ? 'heart-pop' : ''}`} 
-                 />
-              </button>
-
-              <div className="fp-volume-wrapper">
-                 <button className="action-btn-circle" onClick={() => setShowVolume(!showVolume)}>
-                   {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-                 </button>
-                 
-                 {showVolume && (
-                   <div className={`volume-booster-vertical floating-vol-popup ${isBoosted ? 'boosted' : ''}`}>
-                      <div className="vol-tube">
-                        <div 
-                          className={`vol-liquid ${isBoosted ? 'danger' : ''}`} 
-                          style={{ height: `${Math.min(100, volume / 2)}%` }} 
-                        />
-                        <input 
-                          type="range" 
-                          min={0} 
-                          max={200} 
-                          value={volume} 
-                          onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                          className="vol-slider-overlay"
-                        />
-                      </div>
-                      <span className="vol-label">{Math.round(volume)}%</span>
-                   </div>
-                 )}
-              </div>
           </div>
         </div>
       </div>

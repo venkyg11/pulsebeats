@@ -211,27 +211,39 @@
 
 .fp-info {
   text-align: center;
-  margin-bottom: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fp-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
-  margin-bottom: 24px;
-  width: 100%;
+  padding: 0 16px;
+  margin: 32px 0;
+  gap: 16px;
 }
 
 .fp-title-artist h2 {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 4px;
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 20px;
+  padding: 0;
+  color: var(--text-main);
 }
 
 .fp-artist-text {
-  font-size: 16px;
-  color: var(--primary);
-  opacity: 0.8;
+  font-size: 15px;
+  color: var(--text-muted);
   font-weight: 500;
+  opacity: 0.8;
 }
 
 .fp-equalizer {
@@ -328,18 +340,27 @@
   height: 48px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  transition: all 0.2s;
-  border: 1px solid var(--border-light);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .action-btn-circle:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-main);
   border-color: var(--primary);
+  transform: scale(1.1);
+  box-shadow: 0 0 15px var(--primary-glow);
+}
+
+.action-btn-circle:active {
+  transform: scale(0.95);
 }
 
 .fp-volume-wrapper {
@@ -349,7 +370,8 @@
 .floating-vol-popup {
   position: absolute;
   bottom: 60px;
-  right: -6px;
+  left: 50%;
+  transform: translateX(-50%);
   height: 200px !important;
   width: 60px !important;
   animation: floatReveal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);

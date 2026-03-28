@@ -59,6 +59,22 @@ export const saveSong = async (song: SongMetadata) => {
   await db.put('songs', song);
 };
 
+export const saveSongs = async (songs: SongMetadata[]) => {
+  if (songs.length === 0) return;
+  const db = await initDB();
+  const tx = db.transaction('songs', 'readwrite');
+  const store = tx.objectStore('songs');
+  await Promise.all([
+    ...songs.map(song => store.put(song)),
+    tx.done
+  ]);
+};
+
+export const getSongById = async (id: string): Promise<SongMetadata | undefined> => {
+  const db = await initDB();
+  return await db.get('songs', id);
+};
+
 export const getSongs = async (): Promise<SongMetadata[]> => {
   const db = await initDB();
   return await db.getAllFromIndex('songs', 'by-added');

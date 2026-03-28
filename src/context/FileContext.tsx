@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as musicMetadata from 'music-metadata-browser';
 import type { SongMetadata } from '../utils/db';
-import { saveSong, getSongs, clearSongs, toggleSongFavorite, saveSetting, getSetting } from '../utils/db';
+import { saveSongs, getSongs, clearSongs, toggleSongFavorite, saveSetting, getSetting, getSongById } from '../utils/db';
 
 interface FileContextType {
   library: SongMetadata[];
@@ -119,21 +119,17 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const processDirectory = async (dirHandle: any, newSongs: SongMetadata[]) => {
-    for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'file') {
-        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
-        if (supportedExtensions.includes(ext)) {
-          const file = await entry.getFile();
-          const songMeta = await parseFile(file, entry);
-          if (songMeta) {
-            newSongs.push(songMeta);
-            await saveSong(songMeta);
-          }
-        }
-      } else if (entry.kind === 'directory') {
-        await processDirectory(entry, newSongs);
-      }
+  const processFile = async (entry: any, newSongs: SongMetadata[]) => {
+    const file = await entry.getFile();
+    const songId = `${file.name}-${file.size}`;
+    
+    // Skip if already in database
+    const existing = await getSongById(songId);
+    if (existing) return;
+
+    const songMeta = await parseFile(file, entry);
+    if (songMeta) {
+      newSongs.push(songMeta);
     }
   };
 
@@ -146,8 +142,46 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPermissionStatus('granted');
       
       setIsScanning(true);
+      const allFileEntries: any[] = [];
+      
+      // 1. Discover all files first (fast)
+      const discoverFiles = async (handle: any) => {
+        for await (const entry of handle.values()) {
+          if (entry.kind === 'file') {
+            const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+            if (supportedExtensions.includes(ext)) {
+              allFileEntries.push(entry);
+            }
+          } else if (entry.kind === 'directory') {
+            await discoverFiles(entry);
+          }
+        }
+      };
+      
+      await discoverFiles(dirHandle);
+
+      // 2. Process files in parallel with concurrency limit
+      const CONCURRENCY_LIMIT = 10;
+      const BATCH_SIZE = 20;
       const newSongs: SongMetadata[] = [];
-      await processDirectory(dirHandle, newSongs);
+      
+      for (let i = 0; i < allFileEntries.length; i += CONCURRENCY_LIMIT) {
+        const batch = allFileEntries.slice(i, i + CONCURRENCY_LIMIT);
+        await Promise.all(batch.map(entry => processFile(entry, newSongs)));
+        
+        // Periodic save to DB and UI update for large collections
+        if (newSongs.length >= BATCH_SIZE) {
+          await saveSongs([...newSongs]);
+          const currentSongs = await getSongs();
+          setLibrary(currentSongs.sort((a, b) => b.addedAt - a.addedAt));
+          newSongs.length = 0; // Clear the batch array but keep the reference
+        }
+      }
+
+      // Final save for any remaining songs
+      if (newSongs.length > 0) {
+        await saveSongs(newSongs);
+      }
       
       const allSaved = await getSongs();
       setLibrary(allSaved.sort((a, b) => b.addedAt - a.addedAt));

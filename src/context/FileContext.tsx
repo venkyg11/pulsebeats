@@ -68,21 +68,28 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const timeout = setTimeout(() => {
         URL.revokeObjectURL(url);
         resolve(0);
-      }, 2000);
+      }, 4000); // 4s for Android metadata patience
 
       audio.src = url;
       audio.preload = 'metadata';
       
       audio.onloadedmetadata = () => {
-        clearTimeout(timeout);
-        const duration = audio.duration;
-        URL.revokeObjectURL(url);
-        
-        // Handle Android/Chrome bug where duration is Infinity initially
-        if (duration === Infinity || isNaN(duration) || duration === 0) {
-          resolve(0);
+        // 🚨 CRITICAL Android/Chrome SEEK-HACK: 
+        // Force the browser to find the end of the Blob by seeking to Infinity!
+        if (audio.duration === Infinity || isNaN(audio.duration) || audio.duration === 0) {
+          audio.currentTime = 1e101;
+          audio.ontimeupdate = () => {
+            audio.ontimeupdate = null;
+            clearTimeout(timeout);
+            const finalDuration = audio.duration;
+            URL.revokeObjectURL(url);
+            resolve(finalDuration === Infinity ? 0 : finalDuration || 0);
+          };
         } else {
-          resolve(duration);
+          clearTimeout(timeout);
+          const duration = audio.duration;
+          URL.revokeObjectURL(url);
+          resolve(duration || 0);
         }
       };
       
@@ -236,12 +243,15 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleManualFileSelect = async (files: FileList) => {
     setIsScanning(true);
     const newSongs: SongMetadata[] = [];
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 5; // Smaller batch save for mobile stability
     const audioFiles = Array.from(files).filter(file => {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       return supportedExtensions.includes(ext);
     });
 
+    // 🚨 SEQUENTIAL PROCESSING:
+    // Processing 170+ files in parallel with `arrayBuffer()` crashes Android memory.
+    // We MUST process them one-by-one to ensure stability.
     for (let i = 0; i < audioFiles.length; i++) {
       const file = audioFiles[i];
       await processFile(file, null, newSongs, true); // shouldStoreBlob = true

@@ -18,7 +18,9 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   const {
     currentSong, isPlaying, progress, duration, togglePlay,
     nextSong, prevSong, seekTo, repeatMode, isShuffle, toggleRepeat, toggleShuffle,
-    volume, setVolumeLevel, isMuted, toggleMute, isBoosted
+    volume, setVolumeLevel, isMuted, toggleMute, isBoosted,
+    // @ts-ignore
+    playError
   } = usePlayer();
 
   const { toggleFavorite } = useFiles();
@@ -36,20 +38,20 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   if (!currentSong) return null;
 
   return (
-    <div className="full-player slide-up premium-charcoal">
+    <div className={`full-player slide-up premium-charcoal ${playError !== 'none' ? 'has-error' : ''}`}>
       <div className="fp-header">
         <button className="fp-close" onClick={onClose} aria-label="Close player">
           <ChevronDown size={32} />
         </button>
         <div className="fp-header-title">
-          <h3>Now Playing</h3>
+          <h3>{playError === 'blocked' ? 'Interaction Required' : 'Now Playing'}</h3>
         </div>
         <div className="fp-header-spacer" />
       </div>
 
       <div className="fp-main-content">
         {/* 1. Square Album Art Section */}
-        <div className={`fp-art-wrapper ${isPlaying ? 'playing' : ''}`}>
+        <div className={`fp-art-wrapper ${isPlaying ? 'playing' : ''} ${playError !== 'none' ? 'error' : ''}`}>
            {currentSong.coverArt ? (
              <img src={currentSong.coverArt} className="fp-art-image" alt="cover" />
            ) : (
@@ -57,11 +59,18 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
                 <Music size={80} />
              </div>
            )}
+           {playError !== 'none' && (
+             <div className="fp-error-overlay">
+               <span className="error-msg">
+                 {playError === 'blocked' ? 'Tap to play' : 'Format not supported'}
+               </span>
+             </div>
+           )}
         </div>
 
         {/* 2. Equalizer Section Directly Below Art */}
         <div className="fp-eq-container">
-           <Equalizer />
+           {playError === 'none' && <Equalizer />}
         </div>
 
         {/* 3. Song Info Row: [Heart] [Title+Artist] [Speaker] */}
@@ -160,7 +169,11 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
             <SkipBack size={32} fill="currentColor" />
           </button>
           
-          <button className="fp-play-btn-large glow-effect" onClick={togglePlay} title={isPlaying ? "Pause" : "Play"}>
+          <button 
+            className={`fp-play-btn-large glow-effect ${playError !== 'none' ? 'error-pulse' : ''}`} 
+            onClick={togglePlay} 
+            title={isPlaying ? "Pause" : "Play"}
+          >
             {isPlaying ? <Pause size={40} fill="currentColor" /> : <Play size={40} fill="currentColor" />}
           </button>
           
@@ -178,7 +191,5 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
         </div>
       </div>
     </div>
-
-
   );
 };

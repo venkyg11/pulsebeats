@@ -16,7 +16,14 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  touch-action: manipulation;
 }
+
+.mini-player.has-error {
+  border-color: rgba(255, 42, 85, 0.4);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8), 0 0 20px rgba(255, 42, 85, 0.2);
+}
+
 
 .mini-player-inner {
   flex: 1;
@@ -109,6 +116,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  touch-action: manipulation;
 }
 
 .mini-action-btn {
@@ -151,6 +159,33 @@
   }
 }
 
+/* Mini Player Retry Button */
+.mini-retry-btn {
+  background: var(--primary);
+  color: #000;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 0 15px var(--primary-glow);
+  animation: retryPulse 2s infinite;
+}
+
+.retry-text {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@keyframes retryPulse {
+  0% { transform: scale(1); box-shadow: 0 0 15px var(--primary-glow); }
+  50% { transform: scale(1.05); box-shadow: 0 0 25px var(--primary-glow); }
+  100% { transform: scale(1); box-shadow: 0 0 15px var(--primary-glow); }
+}
+
 /* FULL PLAYER REDESIGN - Premium Android Experience */
 .full-player {
   position: fixed;
@@ -161,6 +196,7 @@
   background: var(--bg-base);
   padding: 24px 20px;
   overflow: hidden;
+  touch-action: none; /* Full player handles its own touch gestures or should be locked */
 }
 
 .premium-charcoal {
@@ -239,6 +275,35 @@
 
 .fp-art-wrapper.playing {
   transform: scale(1.05);
+}
+
+.fp-art-wrapper.error {
+  transform: scale(0.95);
+  filter: grayscale(0.5);
+}
+
+.fp-error-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  z-index: 10;
+  border: 2px solid var(--primary);
+}
+
+.error-msg {
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 20px;
+  text-shadow: 0 0 15px var(--primary-glow);
 }
 
 .fp-art-wrapper.playing::before {
@@ -515,7 +580,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
+
+.error-pulse {
+  animation: errorPulseNeon 1.5s infinite;
+  background: var(--primary) !important;
+  color: #000 !important;
+}
+
+@keyframes errorPulseNeon {
+  0% { transform: scale(1); box-shadow: 0 0 20px var(--primary-glow); }
+  50% { transform: scale(1.15); box-shadow: 0 0 40px var(--primary-glow), 0 0 100px var(--primary-glow); }
+  100% { transform: scale(1); box-shadow: 0 0 20px var(--primary-glow); }
+}
+
 
 .fp-small-ctrl {
   width: 44px;

@@ -26,6 +26,7 @@ interface PlayerContextType {
   isShuffle: boolean;
   equalizerStyle: 'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular';
   playError: PlayErrorType;
+  isBuffering: boolean;
   playSong: (index: number, newQueue?: SongMetadata[]) => Promise<void>;
   togglePlay: () => Promise<void>;
   nextSong: () => Promise<void>;
@@ -59,8 +60,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular'
   >('classic');
   const [playError, setPlayError] = useState<PlayErrorType>('none');
+  const [isBuffering, setIsBuffering] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(new Audio());
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+
   const objectUrlRef = useRef<string | null>(null);
   const songRef = useRef<SongMetadata | null>(null);
   const queueRef = useRef<SongMetadata[]>([]);
@@ -128,6 +134,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const onPlay = () => {
       setIsPlaying(true);
       setPlayError('none');
+      setIsBuffering(false);
     };
 
     const onPause = () => {
@@ -182,10 +189,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const onError = () => {
-      console.error('Audio error code:', audio.error?.code);
+      console.error('Audio error code:', audio.error?.code, audio.error?.message);
       setPlayError('unsupported');
       setIsPlaying(false);
+      setIsBuffering(false);
     };
+
+    const onWaiting = () => setIsBuffering(true);
+    const onPlaying = () => setIsBuffering(false);
+    const onCanPlay = () => setIsBuffering(false);
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
@@ -193,6 +205,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
+    audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('canplay', onCanPlay);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
@@ -201,6 +216,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
+      audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('canplay', onCanPlay);
       audio.pause();
 
       if (objectUrlRef.current) {
@@ -211,11 +229,56 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [repeatMode]);
 
   useEffect(() => {
-    let actualVol = isMuted ? 0 : volume / 100;
-    if (actualVol > 1) actualVol = 1;
-    if (actualVol < 0) actualVol = 0;
-    audioRef.current.volume = actualVol;
+    if (gainNodeRef.current) {
+      const vol = isMuted ? 0 : volume / 100;
+      // Use exponential ramp for smoother volume changes
+      gainNodeRef.current.gain.setTargetAtTime(vol, 0, 0.05);
+      // Still set the audio volume as fallback, but cap it at 1.0
+      audioRef.current.volume = Math.min(1.0, vol);
+    } else {
+      let actualVol = isMuted ? 0 : volume / 100;
+      if (actualVol > 1) actualVol = 1;
+      if (actualVol < 0) actualVol = 0;
+      audioRef.current.volume = actualVol;
+    }
   }, [volume, isMuted]);
+
+  const initAudioContext = useCallback(() => {
+    if (audioContextRef.current) return;
+
+    try {
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const gain = ctx.createGain();
+      const source = ctx.createMediaElementSource(audioRef.current);
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      audioContextRef.current = ctx;
+      gainNodeRef.current = gain;
+      sourceNodeRef.current = source;
+
+      // Initialize volume
+      const vol = isMuted ? 0 : volume / 100;
+      gain.gain.value = vol;
+    } catch (err) {
+      console.warn('AudioContext failed to initialize:', err);
+    }
+  }, [volume, isMuted]);
+
+  const resumeAudioContext = useCallback(async () => {
+    initAudioContext();
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+      } catch (err) {
+        console.warn('Failed to resume AudioContext:', err);
+      }
+    }
+  }, [initAudioContext]);
 
   const cleanupOldObjectUrl = useCallback((excludeUrl?: string | null) => {
     const existing = objectUrlRef.current;
@@ -226,103 +289,116 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const loadAndPlayFile = useCallback(
-    async (song: SongMetadata, forcePlay = true): Promise<void> => {
+    async (song: SongMetadata, forcePlay = true, isRetry = false): Promise<void> => {
       const audio = audioRef.current;
       if (!audio) return;
 
       const requestId = ++loadRequestIdRef.current;
       setPlayError('none');
+      setIsBuffering(true);
 
-      const file = await getFileForSong(song);
-
-      if (!file) {
-        console.warn('Playback failed: no file returned for song');
+      // Pre-flight check: If file is marked unsupported during scan, reject immediately.
+      if (song.isUnsupported) {
+        setIsBuffering(false);
         setIsPlaying(false);
         setPlayError('unsupported');
         return;
       }
 
-      const mimeType = file.type || '';
-      if (mimeType && audio.canPlayType(mimeType) === '') {
-        console.warn('Format may not be supported on this device:', mimeType);
-      }
-
-      const newObjectUrl = URL.createObjectURL(file);
-      const previousUrl = objectUrlRef.current;
-
       try {
-        audio.pause();
+        const file = await getFileForSong(song);
 
+        if (!file) {
+          console.warn('Playback failed: no file returned for song');
+          setIsPlaying(false);
+          setIsBuffering(false);
+          setPlayError('unsupported');
+          return;
+        }
+
+        const mimeType = file.type || '';
+        if (mimeType && audio.canPlayType(mimeType) === '') {
+          console.warn('Format may not be supported on this device:', mimeType);
+        }
+
+        const newObjectUrl = URL.createObjectURL(file);
+        const previousUrl = objectUrlRef.current;
+
+        audio.pause();
+        audio.preload = 'auto'; // Android: high priority loading
         objectUrlRef.current = newObjectUrl;
         audio.src = newObjectUrl;
         audio.load();
 
         await new Promise<void>((resolve, reject) => {
           let finished = false;
-
           const cleanup = () => {
             audio.removeEventListener('canplay', onCanPlay);
             audio.removeEventListener('error', onLoadError);
           };
-
           const onCanPlay = () => {
             if (finished) return;
             finished = true;
             cleanup();
             resolve();
           };
-
           const onLoadError = () => {
             if (finished) return;
             finished = true;
             cleanup();
             reject(new Error('Audio failed to load'));
           };
-
           audio.addEventListener('canplay', onCanPlay, { once: true });
           audio.addEventListener('error', onLoadError, { once: true });
-
           setTimeout(() => {
             if (finished) return;
             finished = true;
             cleanup();
-            reject(new Error('Timeout waiting for canplay'));
-          }, 10000);
+            resolve(); // Resolve anyway on timeout to try playing
+          }, 6000);
         });
 
         if (requestId !== loadRequestIdRef.current) {
-          if (newObjectUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(newObjectUrl);
-          }
+          URL.revokeObjectURL(newObjectUrl);
           return;
         }
 
         if (song.lastProgress && song.lastProgress < (song.duration || 0) - 2) {
-          try {
-            audio.currentTime = song.lastProgress;
-            setProgress(song.lastProgress);
-          } catch {
-            setProgress(0);
-          }
+          audio.currentTime = song.lastProgress;
+          setProgress(song.lastProgress);
         } else {
           audio.currentTime = 0;
           setProgress(0);
         }
 
         if (forcePlay) {
+          await resumeAudioContext();
           try {
-            await audio.play();
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+              await playPromise;
+            }
             setIsPlaying(true);
             setPlayError('none');
           } catch (error: any) {
             console.error('Play failed:', error?.name, error?.message);
             if (error?.name === 'NotAllowedError') {
               setPlayError('blocked');
+              console.log('📢 Android Playback: Blocked until user tap.');
+            } else if (!isRetry) {
+              console.warn('Playback failed. Recreating ObjectURL and retrying once...');
+              audio.pause();
+              audio.src = '';
+              if (objectUrlRef.current && objectUrlRef.current.startsWith('blob:')) {
+                URL.revokeObjectURL(objectUrlRef.current);
+                objectUrlRef.current = null;
+              }
+              // Immediately retry once. The recursive call will hit the !isRetry check if it fails again.
+              return loadAndPlayFile(song, forcePlay, true);
             } else {
               setPlayError('unsupported');
             }
             setIsPlaying(false);
-            return;
           }
         }
 
@@ -331,21 +407,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       } catch (error: any) {
         console.error('Playback setup failed:', error);
-        if (newObjectUrl.startsWith('blob:') && objectUrlRef.current !== newObjectUrl) {
-          URL.revokeObjectURL(newObjectUrl);
-        }
         setIsPlaying(false);
+        setIsBuffering(false);
         setPlayError(error?.name === 'NotAllowedError' ? 'blocked' : 'unsupported');
+      } finally {
+        if (requestId === loadRequestIdRef.current) {
+          setIsBuffering(false);
+        }
       }
     },
-    [getFileForSong]
+    [getFileForSong, resumeAudioContext]
   );
 
   const playSong = useCallback(
     async (index: number, newQueue?: SongMetadata[]) => {
-      // 🚨 Synchronous lock claim
-      audioRef.current.play().catch(() => {});
-
+      // Direct user gesture chain
+      await resumeAudioContext();
+      
       const targetQueue = newQueue ?? queueRef.current;
       const targetSong = targetQueue[index];
 
@@ -361,12 +439,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       await loadAndPlayFile(targetSong, true);
     },
-    [loadAndPlayFile]
+    [loadAndPlayFile, resumeAudioContext]
   );
 
   const togglePlay = useCallback(async () => {
     const audio = audioRef.current;
     const song = songRef.current;
+
+    await resumeAudioContext();
 
     if (!audio || !song) return;
 
@@ -382,7 +462,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-      await audio.play();
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
       setIsPlaying(true);
       setPlayError('none');
     } catch (error: any) {
@@ -394,10 +477,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setIsPlaying(false);
     }
-  }, [isPlaying, loadAndPlayFile]);
+  }, [isPlaying, loadAndPlayFile, resumeAudioContext]);
 
   const nextSong = useCallback(async () => {
-    audioRef.current.play().catch(() => {});
+    await resumeAudioContext();
     const q = queueRef.current;
     if (!q.length) return;
 
@@ -421,10 +504,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
        songRef.current = nextTrack;
        await loadAndPlayFile(nextTrack);
     }
-  }, [isShuffle, repeatMode, loadAndPlayFile]);
+  }, [isShuffle, repeatMode, loadAndPlayFile, resumeAudioContext]);
 
   const prevSong = useCallback(async () => {
-    audioRef.current.play().catch(() => {});
+    await resumeAudioContext();
     if (progress > 3) {
       audioRef.current.currentTime = 0;
       setProgress(0);
@@ -443,7 +526,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
        songRef.current = prevTrack;
        await loadAndPlayFile(prevTrack);
     }
-  }, [progress, loadAndPlayFile]);
+  }, [progress, loadAndPlayFile, resumeAudioContext]);
 
   const handleEnded = useCallback(() => {
     if (repeatMode === 'one') {
@@ -501,6 +584,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isShuffle,
         equalizerStyle,
         playError,
+        isBuffering,
         playSong,
         togglePlay,
         nextSong,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, SkipForward, SkipBack, Maximize2, Music } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Maximize2, Music, Loader2 } from 'lucide-react';
 import { usePlayer } from '../../context/PlayerContext';
 
 interface MiniPlayerProps {
@@ -10,8 +10,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
   const { 
     currentSong, isPlaying, togglePlay, nextSong, prevSong, progress, duration,
     // @ts-ignore
-    playError 
-  } = usePlayer();
+    playError, isBuffering 
+  } = usePlayer() as any;
 
   if (!currentSong) return null;
 
@@ -54,7 +54,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
               </button>
               
               <button className="mini-play-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? "Pause" : "Play"}>
-                {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
+                {isBuffering ? (
+                  <Loader2 size={28} className="spinner" />
+                ) : isPlaying ? (
+                  <Pause size={28} fill="currentColor" />
+                ) : (
+                  <Play size={28} fill="currentColor" />
+                )}
               </button>
               
               <button className="mini-action-btn" onClick={(e) => { e.stopPropagation(); nextSong(); }} aria-label="Next">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, SkipForward, SkipBack, ChevronDown, Repeat, Shuffle, Heart, VolumeX, Volume2, Music } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, ChevronDown, Repeat, Shuffle, Heart, VolumeX, Volume2, Music, Loader2 } from 'lucide-react';
 import { usePlayer } from '../../context/PlayerContext';
 import { useFiles } from '../../context/FileContext';
 import { Equalizer } from './Equalizer';
@@ -20,8 +20,8 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
     nextSong, prevSong, seekTo, repeatMode, isShuffle, toggleRepeat, toggleShuffle,
     volume, setVolumeLevel, isMuted, toggleMute, isBoosted,
     // @ts-ignore
-    playError
-  } = usePlayer();
+    playError, isBuffering
+  } = usePlayer() as any;
 
   const { toggleFavorite } = useFiles();
   const [showVolume, setShowVolume] = useState(false);
@@ -174,7 +174,13 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
             onClick={togglePlay} 
             title={isPlaying ? "Pause" : "Play"}
           >
-            {isPlaying ? <Pause size={40} fill="currentColor" /> : <Play size={40} fill="currentColor" />}
+            {isBuffering ? (
+              <Loader2 size={40} className="spinner" />
+            ) : isPlaying ? (
+              <Pause size={40} fill="currentColor" />
+            ) : (
+              <Play size={40} fill="currentColor" />
+            )}
           </button>
           
           <button className="fp-main-ctrl" onClick={nextSong} title="Next">

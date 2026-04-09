@@ -16,6 +16,7 @@ export interface SongMetadata {
   lastPlayedAt?: number;
   playCount?: number;
   isFavorite?: boolean;
+  isUnsupported?: boolean;
 }
 
 interface PulseBeatsDB extends DBSchema {

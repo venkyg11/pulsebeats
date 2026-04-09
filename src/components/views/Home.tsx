@@ -54,8 +54,8 @@ export const Home: React.FC = () => {
       return (
         <div 
           key={song.id} 
-          className={`music-card glass-panel ${isPlaying ? 'playing active-glow' : ''}`} 
-          style={{ animationDelay: `${idx * 0.05}s` }}
+          className={`music-card glass-panel ${isPlaying ? 'playing active-glow' : ''} ${song.isUnsupported ? 'unsupported-card' : ''}`} 
+          style={{ animationDelay: `${idx * 0.05}s`, opacity: song.isUnsupported ? 0.6 : 1 }}
           onClick={() => {
             const globalIdx = library.findIndex(s => s.id === song.id);
             playSong(globalIdx, library);
@@ -71,7 +71,11 @@ export const Home: React.FC = () => {
             )}
             
             <div className="card-overlays">
-              {isRecent(song.addedAt) && <span className="badge-new">NEW</span>}
+              {song.isUnsupported ? (
+                <span className="badge-new" style={{ background: '#ff3366', color: '#fff' }}>UNSUPPORTED</span>
+              ) : isRecent(song.addedAt) ? (
+                <span className="badge-new">NEW</span>
+              ) : null}
               <span className="card-duration-tag">{formatDuration(song.duration)}</span>
             </div>
 
@@ -94,6 +98,7 @@ export const Home: React.FC = () => {
         <div 
           key={song.id} 
           className={`list-item glass-panel ${isActive ? 'active' : ''}`} 
+          style={{ opacity: song.isUnsupported ? 0.6 : 1 }}
           onDoubleClick={() => {
             const globalIdx = library.findIndex(s => s.id === song.id);
             playSong(globalIdx, library);
@@ -103,7 +108,10 @@ export const Home: React.FC = () => {
               {song.coverArt ? <img src={song.coverArt} alt="art" loading="lazy" /> : <div className="card-fallback-icon"><Music size={24} /></div>}
           </div>
           <div className="list-meta">
-              <h4>{song.title}</h4>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {song.title} 
+                {song.isUnsupported && <span style={{ fontSize: '10px', background: '#ff3366', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>UNSUPPORTED</span>}
+              </h4>
               <p className="list-album" style={{margin:0, opacity:0.8}}>{song.artist}</p>
           </div>
           
@@ -195,7 +203,7 @@ export const Home: React.FC = () => {
         <div className="view-header-top">
           <h1>{getTimeGreeting()}</h1>
           <p className="text-muted">Welcome back to PulseBeat</p>
-          <p className="venky-tagline">created by venky</p>
+          <p className="venky-tagline">Built by Venky❤️</p>
         </div>
         
         {library.length > 0 && (
@@ -270,23 +278,7 @@ export const Home: React.FC = () => {
       </header>
 
       <div className="dashboard-grid">
-        {library.length === 0 && permissionStatus === 'prompt' && (
-          <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)', marginBottom: '24px', padding: '16px' }}>
-            <div className="flex-between">
-              <div>
-                <h3 className="text-primary" style={{ marginBottom: '4px' }}>Library Activation Required</h3>
-                <p className="text-muted" style={{ fontSize: '14px' }}>Verify your music folder once to enable instant playback for this session.</p>
-              </div>
-              <button 
-                className="btn-primary" 
-                onClick={verifyLibrary}
-                style={{ width: 'auto', padding: '10px 24px', fontSize: '14px' }}
-              >
-                Activate Library
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Legacy activation banner removed to simulate native app experience */}
 
         {library.length === 0 ? (
           <div className="empty-state glass-panel">

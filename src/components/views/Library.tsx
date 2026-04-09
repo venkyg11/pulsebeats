@@ -68,23 +68,7 @@ export const Library: React.FC = () => {
         ))}
       </div>
 
-      {isFileSystemApiSupported && library.length > 0 && permissionStatus === 'prompt' && (
-        <div className="glass-panel permission-banner" style={{ border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)', marginBottom: '24px', padding: '16px' }}>
-          <div className="flex-between">
-            <div>
-              <h3 className="text-primary" style={{ marginBottom: '4px' }}>Library Activation Required</h3>
-              <p className="text-muted" style={{ fontSize: '14px' }}>Verify your music folder once to enable instant playback for this session.</p>
-            </div>
-            <button 
-              className="btn-primary" 
-              onClick={verifyLibrary}
-              style={{ width: 'auto', padding: '10px 24px', fontSize: '14px' }}
-            >
-              Activate Library
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Legacy activation banner removed to simulate native app experience */}
 
       {isScanning && (
         <div className="scanning-banner glow-effect glass-panel">
@@ -104,7 +88,8 @@ export const Library: React.FC = () => {
             return (
               <div 
                 key={song.id} 
-                className={`music-card glass-panel ${isActive ? 'playing active-glow' : ''}`} 
+                className={`music-card glass-panel ${isActive ? 'playing active-glow' : ''}`}
+                style={{ opacity: song.isUnsupported ? 0.6 : 1 }} 
                 onClick={() => {
                   const globalIdx = library.findIndex(s => s.id === song.id);
                   playSong(globalIdx, library);
@@ -120,6 +105,9 @@ export const Library: React.FC = () => {
                   )}
                   
                   <div className="card-overlays">
+                    {song.isUnsupported && (
+                      <span className="badge-new" style={{ background: '#ff3366', color: '#fff' }}>UNSUPPORTED</span>
+                    )}
                     <span className="card-duration-tag">{formatDuration(song.duration)}</span>
                   </div>
 

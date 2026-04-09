@@ -5,8 +5,33 @@ import { BottomNav } from './BottomNav';
 import { MiniPlayer } from '../player/MiniPlayer';
 import { FullPlayer } from '../player/FullPlayer';
 import { FloatingSettings } from './FloatingSettings';
+import { PermissionModal } from './PermissionModal';
 import { usePlayer } from '../../context/PlayerContext';
 import { useFiles } from '../../context/FileContext';
+
+const DebugToast = () => {
+  const { playError } = usePlayer() as any;
+  const [visible, setVisible] = useState(false);
+  
+  useEffect(() => {
+    if (playError === 'blocked' || playError === 'unsupported') {
+      setVisible(true);
+      const timer = setTimeout(() => setVisible(false), 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setVisible(false);
+    }
+  }, [playError]);
+
+  if (!visible || playError === 'none') return null;
+
+  return (
+    <div className={`debug-toast slide-up ${playError}`}>
+       {playError === 'blocked' && "Android: Playback blocked until user tap."}
+       {playError === 'unsupported' && "This audio format/codec is not supported on your phone. Try MP3 or M4A."}
+    </div>
+  );
+};
 
 export const Layout: React.FC = () => {
   const { 
@@ -57,6 +82,9 @@ export const Layout: React.FC = () => {
 
   return (
     <div className="app-layout">
+      {/* Media Permission Check */}
+      <PermissionModal />
+
       {/* Background with animated particles or simple gradient */}
       <div className="ambient-background">
         <div className="particles-container">
@@ -108,6 +136,9 @@ export const Layout: React.FC = () => {
           <Plus size={24} />
         </button>
       )}
+
+      {/* Android Debug Toast */}
+      <DebugToast />
     </div>
   );
 };

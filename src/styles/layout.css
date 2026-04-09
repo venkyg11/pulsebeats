@@ -275,3 +275,50 @@
   .nav-text-label { font-size: 9px; }
 }
 
+/* Spinner Animation */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Debug Toast */
+.debug-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(40, 10, 10, 0.9);
+  border: 1px solid #ff4444;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  z-index: 2000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+
+/* Mini Player error state touches */
+.mini-retry-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--primary);
+  color: #000;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-weight: bold;
+  pointer-events: auto; /* IMPORTANT FOR MOBILE TAPS */
+}
+.mini-retry-btn:active {
+  transform: scale(0.95);
+}
+
+.mini-actions-group button {
+  pointer-events: auto;
+}
+

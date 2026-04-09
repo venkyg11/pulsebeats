@@ -637,3 +637,113 @@
   color: var(--primary);
   font-weight: 600;
 }
+
+/* PERMISSION MODAL - Android Simulated App Experience */
+.permission-modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.permission-modal {
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 40px rgba(0, 229, 255, 0.05);
+}
+
+.permission-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  background: rgba(0, 229, 255, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+}
+
+.permission-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: #fff;
+}
+
+.permission-desc {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+}
+
+.permission-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.perm-btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.perm-btn.deny {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.perm-btn.allow {
+  background: var(--primary);
+  color: #000;
+  box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3);
+}
+
+.perm-btn:active {
+  transform: scale(0.96);
+}
+
+.permission-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.permission-processing h2 {
+  font-size: 20px;
+  margin: 20px 0 8px;
+}
+
+.permission-processing p {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.success-pop {
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}

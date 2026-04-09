@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as musicMetadata from 'music-metadata-browser';
+import { fetchMovieArt } from '../utils/fetchArtwork';
 import type { SongMetadata } from '../utils/db';
 import { saveSongs, getSongs, clearSongs, toggleSongFavorite, saveSetting, getSetting, getSongById } from '../utils/db';
 
@@ -11,6 +12,8 @@ interface FileContextType {
   rescanAll: () => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   verifyLibrary: () => Promise<void>;
+  hasGivenPermission: boolean;
+  setHasGivenPermission: (val: boolean) => void;
   getFileForSong: (song: SongMetadata) => Promise<File | null>;
   handleManualFileSelect: (files: FileList) => Promise<void>;
   isFileSystemApiSupported: boolean;
@@ -27,6 +30,9 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [library, setLibrary] = useState<SongMetadata[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'prompt' | 'denied'>('prompt');
+  const [hasGivenPermission, setHasGivenPermission] = useState<boolean>(() => {
+    return localStorage.getItem('mediaAccessGranted') === 'true';
+  });
   const [rootHandle, setRootHandle] = useState<any>(null);
   
   const isFileSystemApiSupported = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
@@ -102,6 +108,21 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const parseFile = async (file: File, fileHandle?: any, shouldStoreBlob = false): Promise<SongMetadata | null> => {
+    let isUnsupported = false;
+    const testAudio = new Audio();
+    const mime = file.type || '';
+    
+    // Check if the browser claims it can play this mime type
+    if (mime && testAudio.canPlayType(mime) === '') {
+      isUnsupported = true;
+    } else {
+      // Fallback check against extensions if mime is weird or empty
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (!['mp3', 'm4a', 'aac', 'wav', 'ogg', 'mp4', 'flac'].includes(ext)) {
+        isUnsupported = true;
+      }
+    }
+
     try {
       const metadata = await musicMetadata.parseBlob(file);
       
@@ -120,6 +141,13 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
            reader.readAsDataURL(blob);
         });
         coverArt = base64String;
+      } else {
+        // Fallback to iTunes API if no embedded artwork is found
+        const albumOrTitle = metadata.common.album || file.name.replace(/\.[^/.]+$/, '');
+        const remoteArt = await fetchMovieArt(albumOrTitle);
+        if (remoteArt) {
+          coverArt = remoteArt;
+        }
       }
 
       return {
@@ -132,20 +160,26 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fileHandle,
         fileBlob: shouldStoreBlob ? file : undefined,
         coverArt,
-        addedAt: Date.now()
+        addedAt: Date.now(),
+        isUnsupported
       };
     } catch (e) {
       const duration = await getAudioDuration(file);
+      const title = file.name.replace(/\.[^/.]+$/, '');
+      const remoteArt = await fetchMovieArt(title);
+      
       return {
          id: file.name + '-' + file.size,
-         title: file.name.replace(/\.[^/.]+$/, ''),
+         title,
          artist: 'Unknown Artist',
          album: 'Unknown Album',
          duration,
          fileName: file.name,
          fileHandle,
          fileBlob: shouldStoreBlob ? file : undefined,
-         addedAt: Date.now()
+         coverArt: remoteArt || undefined,
+         addedAt: Date.now(),
+         isUnsupported
       };
     }
   };
@@ -309,8 +343,12 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <FileContext.Provider value={{ 
-      library, isScanning, permissionStatus, isFileSystemApiSupported,
-      scanDirectory, rescanAll, toggleFavorite, verifyLibrary, getFileForSong, handleManualFileSelect 
+      library, isScanning, permissionStatus, isFileSystemApiSupported, hasGivenPermission,
+      scanDirectory, rescanAll, toggleFavorite, verifyLibrary, getFileForSong, handleManualFileSelect,
+      setHasGivenPermission: (val: boolean) => {
+        localStorage.setItem('mediaAccessGranted', val.toString());
+        setHasGivenPermission(val);
+      }
     }}>
       {children}
     </FileContext.Provider>

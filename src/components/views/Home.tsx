@@ -1,13 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useFiles } from '../../context/FileContext';
 import { usePlayer } from '../../context/PlayerContext';
-import { Music, Sparkles } from 'lucide-react';
+import { Music, Sparkles, Search, LayoutGrid, List, Columns, Play, Heart } from 'lucide-react';
 import type { SongMetadata } from '../../utils/db';
 import { formatDuration } from '../../utils/format';
 
 export const Home: React.FC = () => {
-  const { library, permissionStatus, verifyLibrary } = useFiles();
+  const { library, permissionStatus, verifyLibrary, toggleFavorite } = useFiles();
   const { playSong, currentSong } = usePlayer();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'scroll' | 'grid' | 'list'>('scroll');
+  const [animatingId, setAnimatingId] = useState<string | null>(null);
 
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
@@ -33,55 +36,129 @@ export const Home: React.FC = () => {
     };
   }, [library]);
 
-  const renderSection = (title: string, songs: SongMetadata[]) => {
+  const renderSection = (title: string, rawSongs: SongMetadata[]) => {
+    let songs = rawSongs;
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      songs = songs.filter(s => 
+        s.title.toLowerCase().includes(q) || 
+        s.artist.toLowerCase().includes(q) || 
+        s.album.toLowerCase().includes(q)
+      );
+    }
+
     if (songs.length === 0) return null;
+
+    const renderCard = (song: SongMetadata, idx: number) => {
+      const isPlaying = currentSong?.id === song.id;
+      return (
+        <div 
+          key={song.id} 
+          className={`music-card glass-panel ${isPlaying ? 'playing active-glow' : ''}`} 
+          style={{ animationDelay: `${idx * 0.05}s` }}
+          onClick={() => {
+            const globalIdx = library.findIndex(s => s.id === song.id);
+            playSong(globalIdx, library);
+          }}
+        >
+          <div className="card-art-container">
+            {song.coverArt ? (
+              <img src={song.coverArt} alt={song.title} className="card-art-img" loading="lazy" />
+            ) : (
+              <div className="card-art-placeholder">
+                <Music size={32} />
+              </div>
+            )}
+            
+            <div className="card-overlays">
+              {isRecent(song.addedAt) && <span className="badge-new">NEW</span>}
+              <span className="card-duration-tag">{formatDuration(song.duration)}</span>
+            </div>
+
+            <div className={`card-play-overlay ${isPlaying ? 'visible' : ''}`}>
+              <div className="play-pulse-icon" />
+            </div>
+          </div>
+
+          <div className="card-details">
+             <h3 className="card-title" title={song.title}>{song.title}</h3>
+             <p className="card-subtitle" title={song.artist}>{song.artist}</p>
+          </div>
+        </div>
+      );
+    };
+
+    const renderListItem = (song: SongMetadata, idx: number) => {
+      const isActive = currentSong?.id === song.id;
+      return (
+        <div 
+          key={song.id} 
+          className={`list-item glass-panel ${isActive ? 'active' : ''}`} 
+          onDoubleClick={() => {
+            const globalIdx = library.findIndex(s => s.id === song.id);
+            playSong(globalIdx, library);
+          }}
+        >
+          <div className="list-art">
+              {song.coverArt ? <img src={song.coverArt} alt="art" loading="lazy" /> : <div className="card-fallback-icon"><Music size={24} /></div>}
+          </div>
+          <div className="list-meta">
+              <h4>{song.title}</h4>
+              <p className="list-album" style={{margin:0, opacity:0.8}}>{song.artist}</p>
+          </div>
+          
+          <button 
+            className="list-action-btn heart-btn" 
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(song.id);
+              setAnimatingId(song.id);
+              setTimeout(() => setAnimatingId(null), 600);
+            }}
+            title={song.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+          >
+            <div className={`heart-pop-wrapper ${animatingId === song.id ? 'heart-pop' : ''}`}>
+              <Heart 
+                size={20} 
+                className={`heart-icon ${song.isFavorite ? 'active' : ''}`} 
+              />
+            </div>
+          </button>
+          
+          <button 
+            className="list-action-btn play-btn" 
+            onClick={() => {
+               const globalIdx = library.findIndex(s => s.id === song.id);
+               playSong(globalIdx, library);
+            }}
+          >
+            <Play size={20} fill={isActive ? "var(--bg-base)" : "none"} />
+          </button>
+        </div>
+      );
+    };
+
     return (
       <section className="dash-section" style={{ marginBottom: '40px' }}>
         <h2 className="section-title">{title}</h2>
-        <div className="home-card-grid">
-          {songs.map((song) => {
-            const isPlaying = currentSong?.id === song.id;
-            return (
-              <div 
-                key={song.id} 
-                className={`music-card glass-panel ${isPlaying ? 'playing active-glow' : ''}`} 
-                onClick={() => {
-                  const globalIdx = library.findIndex(s => s.id === song.id);
-                  playSong(globalIdx, library);
-                }}
-              >
-                {/* Image / Art Area */}
-                <div className="card-art-container">
-                  {song.coverArt ? (
-                    <img src={song.coverArt} alt={song.title} className="card-art-img" />
-                  ) : (
-                    <div className="card-art-placeholder">
-                      <Music size={32} />
-                    </div>
-                  )}
-                  
-                  {/* Overlay Badges */}
-                  <div className="card-overlays">
-                    {isRecent(song.addedAt) && <span className="badge-new">NEW</span>}
-                    <span className="card-duration-tag">{formatDuration(song.duration)}</span>
-                  </div>
-
-                  {/* Play Overlay (Visible on Hover/Playing) */}
-                  <div className={`card-play-overlay ${isPlaying ? 'visible' : ''}`}>
-                    <div className="play-pulse-icon" />
-                  </div>
-                </div>
-
-                {/* Info Area */}
-                <div className="card-details">
-                   <h3 className="card-title" title={song.title}>{song.title}</h3>
-                   <p className="card-subtitle" title={song.artist}>{song.artist}</p>
-                </div>
-              </div>
-            );
-          })}
-
-        </div>
+        
+        {viewMode === 'scroll' && (
+          <div className="horizontal-scroll-row">
+            {songs.map((song, i) => renderCard(song, i))}
+          </div>
+        )}
+        
+        {viewMode === 'grid' && (
+          <div className="home-card-grid">
+            {songs.map((song, i) => renderCard(song, i))}
+          </div>
+        )}
+        
+        {viewMode === 'list' && (
+          <div className="list-view">
+            {songs.map((song, i) => renderListItem(song, i))}
+          </div>
+        )}
       </section>
     );
   };
@@ -117,9 +194,79 @@ export const Home: React.FC = () => {
       <header className="view-header">
         <div className="view-header-top">
           <h1>{getTimeGreeting()}</h1>
-          <p className="text-muted">Your futuristic music hub</p>
-          <p className="venky-tagline">Built by Venky ❤️</p>
+          <p className="text-muted">Welcome back to PulseBeat</p>
+          <p className="venky-tagline">created by venky</p>
         </div>
+        
+        {library.length > 0 && (
+          <div className="action-buttons-row">
+            <button 
+              className="glass-action-btn primary"
+              onClick={() => {
+                if (library.length > 0) {
+                  const randomIdx = Math.floor(Math.random() * library.length);
+                  playSong(randomIdx, library);
+                }
+              }}
+            >
+              Shuffle All
+            </button>
+            <button 
+              className="glass-action-btn secondary"
+              onClick={() => {
+                const recent = [...library].filter(s => s.lastPlayedAt).sort((a,b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0));
+                if (recent.length > 0) {
+                  const idx = library.findIndex(s => s.id === recent[0].id);
+                  playSong(idx, library);
+                }
+              }}
+            >
+              Resume Last Session
+            </button>
+          </div>
+        )}
+
+        {library.length > 0 && (
+          <div className="home-controls-row flex-between" style={{ marginTop: '32px', flexWrap: 'wrap', gap: '16px' }}>
+            <div className="search-box glass-panel" style={{ flex: '1', minWidth: '280px' }}>
+              <Search size={20} className="text-muted" />
+              <input 
+                type="text" 
+                placeholder="Search your library..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            <div className="view-toggles glass-panel flex-between" style={{ padding: '4px', borderRadius: '24px' }}>
+              <button 
+                className={`sop-icon-btn ${viewMode === 'scroll' ? 'active' : ''}`}
+                onClick={() => setViewMode('scroll')}
+                style={{ width: '40px', border: 'none', background: viewMode === 'scroll' ? 'rgba(0,0,0,0.2)' : 'none' }}
+                title="Scroll View"
+              >
+                <Columns size={18} />
+              </button>
+              <button 
+                className={`sop-icon-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                style={{ width: '40px', border: 'none', background: viewMode === 'grid' ? 'rgba(0,0,0,0.2)' : 'none' }}
+                title="Grid View"
+              >
+                <LayoutGrid size={18} />
+              </button>
+              <button 
+                className={`sop-icon-btn ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => setViewMode('list')}
+                style={{ width: '40px', border: 'none', background: viewMode === 'list' ? 'rgba(0,0,0,0.2)' : 'none' }}
+                title="List View"
+              >
+                <List size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="dashboard-grid">
@@ -147,11 +294,10 @@ export const Home: React.FC = () => {
           </div>
         ) : (
           <>
-            {renderSection("Most Played Songs", sections.mostPlayed)}
-            {renderSection("Recent Listening", sections.recentListened)}
-            {renderSection("Highest Play Count", sections.highestCount)}
-            {renderSection("Latest Added Files", sections.latestAdded)}
-            {renderSection("Your Favorites", sections.favorites)}
+            {renderSection("Recently Played", sections.recentListened)}
+            {renderSection("Continue Listening", sections.mostPlayed)}
+            {renderSection("Most Played", sections.highestCount)}
+            {renderSection("Latest Added", sections.latestAdded)}
             <MoodMixes />
           </>
         )}

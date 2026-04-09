@@ -58,7 +58,23 @@ export const Layout: React.FC = () => {
   return (
     <div className="app-layout">
       {/* Background with animated particles or simple gradient */}
-      <div className="ambient-background" />
+      <div className="ambient-background">
+        <div className="particles-container">
+          {Array.from({ length: 15 }).map((_, i) => (
+            <div 
+              key={i} 
+              className="particle" 
+              style={{
+                left: `${Math.random() * 100}%`,
+                width: `${Math.random() * 6 + 2}px`,
+                height: `${Math.random() * 6 + 2}px`,
+                animationDelay: `${Math.random() * 8}s`,
+                animationDuration: `${Math.random() * 10 + 10}s`
+              }} 
+            />
+          ))}
+        </div>
+      </div>
 
       <main className="main-content">
         <div className="scroll-container">
@@ -77,12 +93,7 @@ export const Layout: React.FC = () => {
         <FullPlayer onClose={() => setIsFullPlayerOpen(false)} />
       )}
 
-      {/* Floating Settings Popup */}
-      {isSettingsOpen && (
-        <FloatingSettings onClose={() => setIsSettingsOpen(false)} />
-      )}
-
-      {/* Squared Options Panel */}
+      {/* Floating Settings/Options Panel */}
       {isSettingsOpen && (
         <FloatingSettings onClose={() => setIsSettingsOpen(false)} />
       )}

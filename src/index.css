@@ -4,13 +4,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Premium Dark Futuristic Theme - Solid Charcoal */
-  --bg-base: #000000;
-  --bg-surface: rgba(18, 18, 22, 0.98);
-  --bg-surface-hover: rgba(28, 28, 35, 1);
-  --bg-card: rgba(12, 12, 15, 1);
-  --primary: #00e5ff;
-  --primary-glow: rgba(0, 229, 255, 0.4);
+  /* Cinematic Premium Theme */
+  --bg-base: #020512;
+  --bg-surface: rgba(10, 15, 30, 0.6);
+  --bg-surface-hover: rgba(20, 25, 45, 0.8);
+  --bg-card: rgba(15, 20, 35, 0.5);
+  --primary: #b026ff;
+  --primary-glow: rgba(176, 38, 255, 0.4);
   --adaptive-color: var(--primary);
   --text-main: #ffffff;
   --text-muted: #8892b0;
@@ -26,6 +26,14 @@
   --bottom-nav-height: 72px;
   --mini-player-height: 76px;
   --gap: 12px;
+}
+
+[data-theme="electric-blue"] {
+  --bg-base: #020508;
+  --bg-surface: rgba(10, 15, 20, 0.98);
+  --bg-surface-hover: rgba(20, 25, 30, 1);
+  --primary: #00f3ff;
+  --primary-glow: rgba(0, 243, 255, 0.35);
 }
 
 [data-theme="crimson-night"] {

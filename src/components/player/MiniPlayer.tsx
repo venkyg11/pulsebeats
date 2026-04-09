@@ -28,7 +28,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
         <div className="mini-content-group" onClick={onExpand}>
           <div className="mini-art-container">
             {currentSong.coverArt ? (
-              <img src={currentSong.coverArt} alt="cover" className="mini-art-img" />
+              <img src={currentSong.coverArt} alt="cover" className="mini-art-img" loading="lazy" />
             ) : (
               <div className="mini-art-placeholder">
                 <Music size={20} />

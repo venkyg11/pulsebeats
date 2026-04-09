@@ -5,7 +5,7 @@ import { Home, Library, Heart, Settings, Search } from 'lucide-react';
 export const BottomNav: React.FC = () => {
   const navItems = [
     { to: '/', icon: <Home size={22} />, label: 'Home' },
-    { to: '/continue', icon: <Search size={22} />, label: 'Search' },
+    { to: '/search', icon: <Search size={22} />, label: 'Search' },
     { to: '/library', icon: <Library size={22} />, label: 'Library' },
     { to: '/favorites', icon: <Heart size={24} />, label: 'Favorites' },
     { to: '/settings', icon: <Settings size={22} />, label: 'Settings' },

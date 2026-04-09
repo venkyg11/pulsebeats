@@ -17,6 +17,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="continue" element={<ContinueListening />} />
+          <Route path="search" element={<Library />} />
           <Route path="library" element={<Library />} />
           <Route path="playlists" element={<Playlists />} />
           <Route path="favorites" element={<Favorites />} />

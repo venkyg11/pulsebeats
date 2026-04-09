@@ -5,16 +5,39 @@
   width: 100vw;
   overflow: hidden;
   position: relative;
-  background: var(--bg-base);
+  background: radial-gradient(ellipse at bottom left, #050a1a 0%, #000000 100%);
 }
 
 .ambient-background {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 10%, var(--primary-glow) 0%, transparent 60%);
-  opacity: 0.1;
+  background: radial-gradient(circle at 80% 20%, var(--primary-glow) 0%, transparent 50%);
+  opacity: 0.2;
   z-index: 0;
+}
+
+.particles-container {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.particle {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px var(--primary-glow);
+  animation: floatUp 8s linear infinite;
+}
+
+@keyframes floatUp {
+  0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+  20% { opacity: 0.8; }
+  80% { opacity: 0.5; }
+  100% { transform: translateY(-20vh) translateX(20px); opacity: 0; }
 }
 
 /* SIDEBAR NOT USED */

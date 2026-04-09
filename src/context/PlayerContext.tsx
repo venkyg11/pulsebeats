@@ -1,7 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
 import type { SongMetadata } from '../utils/db';
 import { updateSongProgress, saveSong } from '../utils/db';
 import { useFiles } from './FileContext';
+
+type PlayErrorType = 'none' | 'blocked' | 'unsupported';
 
 interface PlayerContextType {
   queue: SongMetadata[];
@@ -16,23 +25,27 @@ interface PlayerContextType {
   repeatMode: 'off' | 'all' | 'one';
   isShuffle: boolean;
   equalizerStyle: 'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular';
-  playSong: (index: number, newQueue?: SongMetadata[]) => void;
-  togglePlay: () => void;
-  nextSong: () => void;
-  prevSong: () => void;
+  playError: PlayErrorType;
+  playSong: (index: number, newQueue?: SongMetadata[]) => Promise<void>;
+  togglePlay: () => Promise<void>;
+  nextSong: () => Promise<void>;
+  prevSong: () => Promise<void>;
   seekTo: (time: number) => void;
   setVolumeLevel: (vol: number) => void;
   toggleMute: () => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
   toggleBoost: () => void;
-  setEqualizerStyle: (style: 'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular') => void;
+  setEqualizerStyle: (
+    style: 'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular'
+  ) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { library, getFileForSong, permissionStatus } = useFiles();
+  const { library, getFileForSong } = useFiles();
+
   const [queue, setQueue] = useState<SongMetadata[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,206 +55,395 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isMuted, setIsMuted] = useState(false);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffle, setIsShuffle] = useState(false);
-  const [equalizerStyle, setEqualizerStyle] = useState<'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular'>('classic');
-  const [playError, setPlayError] = useState<'none' | 'blocked' | 'unsupported'>('none');
+  const [equalizerStyle, setEqualizerStyle] = useState<
+    'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular'
+  >('classic');
+  const [playError, setPlayError] = useState<PlayErrorType>('none');
 
-  // Single persistent audio element
   const audioRef = useRef<HTMLAudioElement>(new Audio());
-  const songRef = useRef<SongMetadata | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-  
-  const currentSong = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+  const songRef = useRef<SongMetadata | null>(null);
+  const queueRef = useRef<SongMetadata[]>([]);
+  const currentIndexRef = useRef<number>(-1);
+  const loadRequestIdRef = useRef(0);
+
+  const currentSong =
+    currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+
+  const isBoosted = volume > 100;
 
   useEffect(() => {
-    if (queue.length > 0 && library.length > 0) {
-      setQueue(prevQueue => prevQueue.map(qSong => {
-        const libSong = library.find(ls => ls.id === qSong.id);
-        if (libSong && (libSong.isFavorite !== qSong.isFavorite || libSong.title !== qSong.title)) {
-          return { ...qSong, ...libSong };
-        }
-        return qSong;
-      }));
-    }
-  }, [library]);
+    queueRef.current = queue;
+  }, [queue]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     songRef.current = currentSong;
   }, [currentSong]);
 
-  const isBoosted = volume > 100;
+  useEffect(() => {
+    if (queue.length > 0 && library.length > 0) {
+      setQueue((prevQueue) =>
+        prevQueue.map((qSong) => {
+          const libSong = library.find((ls) => ls.id === qSong.id);
+          if (
+            libSong &&
+            (libSong.isFavorite !== qSong.isFavorite ||
+              libSong.title !== qSong.title ||
+              libSong.artist !== qSong.artist ||
+              libSong.album !== qSong.album)
+          ) {
+            return { ...qSong, ...libSong };
+          }
+          return qSong;
+        })
+      );
+    }
+  }, [library, queue.length]);
 
-  // Initialize audio listeners once
   useEffect(() => {
     const audio = audioRef.current;
-    
-    const onTimeUpdate = () => setProgress(audio.currentTime);
+
+    const onTimeUpdate = () => {
+      setProgress(audio.currentTime || 0);
+    };
+
     const onLoadedMetadata = () => {
       if (!isNaN(audio.duration) && audio.duration > 0 && audio.duration !== Infinity) {
         setDuration(audio.duration);
+
         if (songRef.current && (!songRef.current.duration || songRef.current.duration === 0)) {
           saveSong({ ...songRef.current, duration: audio.duration });
         }
       } else if (songRef.current?.duration) {
         setDuration(songRef.current.duration);
+      } else {
+        setDuration(0);
+      }
+    };
+
+    const onPlay = () => {
+      setIsPlaying(true);
+      setPlayError('none');
+    };
+
+    const onPause = () => {
+      setIsPlaying(false);
+    };
+
+    const onEnded = async () => {
+      if (repeatMode === 'one') {
+        try {
+          audio.currentTime = 0;
+          await audio.play();
+        } catch (error: any) {
+          if (error?.name === 'NotAllowedError') {
+            setPlayError('blocked');
+          } else {
+            setPlayError('unsupported');
+          }
+          setIsPlaying(false);
+        }
+        return;
+      }
+
+      const q = queueRef.current;
+      const idx = currentIndexRef.current;
+
+      if (!q.length || idx < 0) {
+        setIsPlaying(false);
+        return;
+      }
+
+      let nextIndex = idx + 1;
+      if (nextIndex >= q.length) {
+        if (repeatMode === 'all') nextIndex = 0;
+        else {
+          setIsPlaying(false);
+          return;
+        }
+      }
+
+      const nextTrack = q[nextIndex];
+      if (!nextTrack) {
+        setIsPlaying(false);
+        return;
+      }
+
+      setCurrentIndex(nextIndex);
+      try {
+        await loadAndPlayFile(nextTrack, true);
+      } catch {
+        // handled inside loadAndPlayFile
       }
     };
 
     const onError = () => {
-      console.error("Audio error code:", audio.error?.code);
+      console.error('Audio error code:', audio.error?.code);
       setPlayError('unsupported');
       setIsPlaying(false);
     };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
-    
+
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
       audio.pause();
+
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
       }
     };
+  }, [repeatMode]);
+
+  useEffect(() => {
+    let actualVol = isMuted ? 0 : volume / 100;
+    if (actualVol > 1) actualVol = 1;
+    if (actualVol < 0) actualVol = 0;
+    audioRef.current.volume = actualVol;
+  }, [volume, isMuted]);
+
+  const cleanupOldObjectUrl = useCallback((excludeUrl?: string | null) => {
+    const existing = objectUrlRef.current;
+    if (existing && existing !== excludeUrl && existing.startsWith('blob:')) {
+      URL.revokeObjectURL(existing);
+      objectUrlRef.current = null;
+    }
   }, []);
 
-  const loadAndPlayFile = useCallback(async (song: SongMetadata) => {
-    const audio = audioRef.current;
-    if (!audio) return;
+  const loadAndPlayFile = useCallback(
+    async (song: SongMetadata, forcePlay = true): Promise<void> => {
+      const audio = audioRef.current;
+      if (!audio) return;
 
-    setPlayError('none');
-    const file = await getFileForSong(song);
-    
-    if (!file) {
-      console.warn('Playback failed: No file access.');
-      setIsPlaying(false);
-      return;
-    }
+      const requestId = ++loadRequestIdRef.current;
+      setPlayError('none');
 
-    // Check support
-    if (audio.canPlayType(file.type) === '') {
-      console.warn('Format might not be supported:', file.type);
-    }
+      const file = await getFileForSong(song);
 
-    try {
-       // Pause current to ensure clean transition
-       audio.pause();
-       
-       const objectURL = URL.createObjectURL(file);
-       
-       // Handle memory: Revoke OLD url only AFTER setting new one, 
-       // but user said "Do NOT revoke early". We'll keep a reference to revoke when changing next.
-       const oldUrl = objectUrlRef.current;
-       objectUrlRef.current = objectURL;
-       
-       audio.src = objectURL;
-       audio.load();
+      if (!file) {
+        console.warn('Playback failed: no file returned for song');
+        setIsPlaying(false);
+        setPlayError('unsupported');
+        return;
+      }
 
-       // Android requirement: user gesture often needed here if not already "unlocked"
-       // We wait for canplay to ensure we don't play too early
-       return new Promise<void>((resolve, reject) => {
-         const onCanPlay = async () => {
-           audio.removeEventListener('canplay', onCanPlay);
-           
-           if (song.lastProgress && song.lastProgress < (song.duration || 0) - 2) {
-             audio.currentTime = song.lastProgress;
-             setProgress(song.lastProgress);
-           } else {
-             setProgress(0);
-           }
+      const mimeType = file.type || '';
+      if (mimeType && audio.canPlayType(mimeType) === '') {
+        console.warn('Format may not be supported on this device:', mimeType);
+      }
 
-           try {
-             await audio.play();
-             setIsPlaying(true);
-             setPlayError('none');
-             
-             // Now it's safe to revoke the old URL if it exists
-             if (oldUrl && oldUrl.startsWith('blob:')) {
-               URL.revokeObjectURL(oldUrl);
-             }
-             resolve();
-           } catch (error: any) {
-             console.error("Play failed:", error.name, error.message);
-             if (error.name === 'NotAllowedError') {
-               setPlayError('blocked');
-             } else {
-               setPlayError('unsupported');
-             }
-             setIsPlaying(false);
-             reject(error);
-           }
-         };
-         
-         audio.addEventListener('canplay', onCanPlay);
-         
-         // Fallback if canplay takes too long
-         setTimeout(() => {
-           audio.removeEventListener('canplay', onCanPlay);
-           reject(new Error('Timeout waiting for canplay'));
-         }, 10000);
-       });
-    } catch(e) {
-       console.error("Playback setup failed", e);
-       setIsPlaying(false);
-    }
-  }, [getFileForSong]);
+      const newObjectUrl = URL.createObjectURL(file);
+      const previousUrl = objectUrlRef.current;
+
+      try {
+        audio.pause();
+
+        objectUrlRef.current = newObjectUrl;
+        audio.src = newObjectUrl;
+        audio.load();
+
+        await new Promise<void>((resolve, reject) => {
+          let finished = false;
+
+          const cleanup = () => {
+            audio.removeEventListener('canplay', onCanPlay);
+            audio.removeEventListener('error', onLoadError);
+          };
+
+          const onCanPlay = () => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            resolve();
+          };
+
+          const onLoadError = () => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            reject(new Error('Audio failed to load'));
+          };
+
+          audio.addEventListener('canplay', onCanPlay, { once: true });
+          audio.addEventListener('error', onLoadError, { once: true });
+
+          setTimeout(() => {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            reject(new Error('Timeout waiting for canplay'));
+          }, 10000);
+        });
+
+        if (requestId !== loadRequestIdRef.current) {
+          if (newObjectUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(newObjectUrl);
+          }
+          return;
+        }
+
+        if (song.lastProgress && song.lastProgress < (song.duration || 0) - 2) {
+          try {
+            audio.currentTime = song.lastProgress;
+            setProgress(song.lastProgress);
+          } catch {
+            setProgress(0);
+          }
+        } else {
+          audio.currentTime = 0;
+          setProgress(0);
+        }
+
+        if (forcePlay) {
+          try {
+            await audio.play();
+            setIsPlaying(true);
+            setPlayError('none');
+          } catch (error: any) {
+            console.error('Play failed:', error?.name, error?.message);
+            if (error?.name === 'NotAllowedError') {
+              setPlayError('blocked');
+            } else {
+              setPlayError('unsupported');
+            }
+            setIsPlaying(false);
+            return;
+          }
+        }
+
+        if (previousUrl && previousUrl !== newObjectUrl && previousUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previousUrl);
+        }
+      } catch (error: any) {
+        console.error('Playback setup failed:', error);
+        if (newObjectUrl.startsWith('blob:') && objectUrlRef.current !== newObjectUrl) {
+          URL.revokeObjectURL(newObjectUrl);
+        }
+        setIsPlaying(false);
+        setPlayError(error?.name === 'NotAllowedError' ? 'blocked' : 'unsupported');
+      }
+    },
+    [getFileForSong]
+  );
+
+  const playSong = useCallback(
+    async (index: number, newQueue?: SongMetadata[]) => {
+      // 🚨 Synchronous lock claim
+      audioRef.current.play().catch(() => {});
+
+      const targetQueue = newQueue ?? queueRef.current;
+      const targetSong = targetQueue[index];
+
+      if (!targetSong) return;
+
+      if (newQueue) {
+        setQueue(newQueue);
+        queueRef.current = newQueue;
+      }
+
+      setCurrentIndex(index);
+      songRef.current = targetSong;
+
+      await loadAndPlayFile(targetSong, true);
+    },
+    [loadAndPlayFile]
+  );
 
   const togglePlay = useCallback(async () => {
     const audio = audioRef.current;
-    if (!audio || !currentSong) return;
+    const song = songRef.current;
+
+    if (!audio || !song) return;
 
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
-    } else {
-      try {
-        await audio.play();
-        setIsPlaying(true);
-        setPlayError('none');
-      } catch (error: any) {
-        console.error('Resume failed', error);
-        if (error.name === 'NotAllowedError') {
-          setPlayError('blocked');
-        }
-      }
-    }
-  }, [isPlaying, currentSong]);
-
-  const playSong = useCallback((index: number, newQueue?: SongMetadata[]) => {
-    // 🚨 Claim user gesture immediately by trying to play. 
-    // Even if it fails, it flags the audio element as having been touched by a gesture.
-    audioRef.current.play().catch(() => {});
-    
-    if (newQueue) {
-      setQueue(newQueue);
-    }
-    setCurrentIndex(index);
-  }, []);
-
-  const nextSong = useCallback(() => {
-    if (queue.length === 0) return;
-    audioRef.current.play().catch(() => {});
-    setCurrentIndex((prev) => {
-      let next = prev + 1;
-      if (next >= queue.length) {
-        if (repeatMode === 'all') next = 0;
-        else return prev;
-      }
-      return next;
-    });
-  }, [queue.length, repeatMode]);
-
-  const prevSong = useCallback(() => {
-    audioRef.current.play().catch(() => {});
-    if (progress > 3) {
-      seekTo(0);
       return;
     }
-    if (queue.length === 0) return;
-    setCurrentIndex((prev) => (prev - 1 < 0 ? queue.length - 1 : prev - 1));
-  }, [progress, queue.length]);
+
+    if (!audio.src) {
+      await loadAndPlayFile(song, true);
+      return;
+    }
+
+    try {
+      await audio.play();
+      setIsPlaying(true);
+      setPlayError('none');
+    } catch (error: any) {
+      console.error('Resume failed:', error);
+      if (error?.name === 'NotAllowedError') {
+        setPlayError('blocked');
+      } else {
+        setPlayError('unsupported');
+      }
+      setIsPlaying(false);
+    }
+  }, [isPlaying, loadAndPlayFile]);
+
+  const nextSong = useCallback(async () => {
+    audioRef.current.play().catch(() => {});
+    const q = queueRef.current;
+    if (!q.length) return;
+
+    const current = currentIndexRef.current;
+    let nextIdx = current + 1;
+
+    if (isShuffle && q.length > 1) {
+      nextIdx = Math.floor(Math.random() * q.length);
+      while (nextIdx === current) {
+        nextIdx = Math.floor(Math.random() * q.length);
+      }
+    } else if (nextIdx >= q.length) {
+      nextIdx = repeatMode === 'all' ? 0 : current;
+    }
+
+    if (nextIdx === current && repeatMode === 'off' && !isShuffle) return;
+
+    const nextTrack = q[nextIdx];
+    if (nextTrack) {
+       setCurrentIndex(nextIdx);
+       songRef.current = nextTrack;
+       await loadAndPlayFile(nextTrack);
+    }
+  }, [isShuffle, repeatMode, loadAndPlayFile]);
+
+  const prevSong = useCallback(async () => {
+    audioRef.current.play().catch(() => {});
+    if (progress > 3) {
+      audioRef.current.currentTime = 0;
+      setProgress(0);
+      return;
+    }
+
+    const q = queueRef.current;
+    if (!q.length) return;
+
+    const current = currentIndexRef.current;
+    const prevIdx = current - 1 < 0 ? q.length - 1 : current - 1;
+    const prevTrack = q[prevIdx];
+
+    if (prevTrack) {
+       setCurrentIndex(prevIdx);
+       songRef.current = prevTrack;
+       await loadAndPlayFile(prevTrack);
+    }
+  }, [progress, loadAndPlayFile]);
 
   const handleEnded = useCallback(() => {
     if (repeatMode === 'one') {
@@ -262,16 +464,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     audioRef.current.volume = actualVol;
   }, [volume, isMuted]);
 
-  // Main effect to handle song changes
-  useEffect(() => {
-    if (currentSong) {
-      loadAndPlayFile(currentSong);
-    } else {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
-  }, [currentIndex, loadAndPlayFile]); 
-
   useEffect(() => {
     if (isPlaying && currentSong && progress > 5) {
       const interval = setInterval(() => {
@@ -287,21 +479,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const setVolumeLevel = (vol: number) => setVolume(Math.max(0, Math.min(200, vol)));
-  const toggleMute = () => setIsMuted(!isMuted);
-  const toggleShuffle = () => setIsShuffle(!isShuffle);
-  const toggleBoost = () => setVolume(v => v > 100 ? 50 : 150);
-  const toggleRepeat = () => setRepeatMode(prev => prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off');
+  const toggleMute = () => setIsMuted((prev) => !prev);
+  const toggleShuffle = () => setIsShuffle((prev) => !prev);
+  const toggleBoost = () => setVolume((v) => (v > 100 ? 50 : 150));
+  const toggleRepeat = () => setRepeatMode((prev) => (prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off'));
   const setEq = (style: typeof equalizerStyle) => setEqualizerStyle(style);
 
   return (
     <PlayerContext.Provider
       value={{
-        queue, currentIndex, currentSong, isPlaying, progress, duration,
-        volume, isMuted, isBoosted, repeatMode, isShuffle, equalizerStyle,
-        playSong, togglePlay, nextSong, prevSong, seekTo,
-        setVolumeLevel, toggleMute, toggleShuffle, toggleRepeat, toggleBoost, setEqualizerStyle: setEq,
-        // @ts-ignore - exposing playError for UI
-        playError, 
+        queue,
+        currentIndex,
+        currentSong,
+        isPlaying,
+        progress,
+        duration,
+        volume,
+        isMuted,
+        isBoosted,
+        repeatMode,
+        isShuffle,
+        equalizerStyle,
+        playError,
+        playSong,
+        togglePlay,
+        nextSong,
+        prevSong,
+        seekTo,
+        setVolumeLevel,
+        toggleMute,
+        toggleShuffle,
+        toggleRepeat,
+        toggleBoost,
+        setEqualizerStyle: setEq,
       }}
     >
       {children}

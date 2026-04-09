@@ -53,7 +53,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
         {/* 1. Square Album Art Section */}
         <div className={`fp-art-wrapper ${isPlaying ? 'playing' : ''} ${playError !== 'none' ? 'error' : ''}`}>
            {currentSong.coverArt ? (
-             <img src={currentSong.coverArt} className="fp-art-image" alt="cover" />
+             <img src={currentSong.coverArt} className="fp-art-image" alt="cover" loading="lazy" />
            ) : (
              <div className="fp-art-image fp-placeholder-centered card-fallback-icon">
                 <Music size={80} />

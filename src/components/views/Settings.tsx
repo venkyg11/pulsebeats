@@ -2,12 +2,12 @@ import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useFiles } from '../../context/FileContext';
 import { usePlayer } from '../../context/PlayerContext';
-import { Palette, Trash, RefreshCw, HardDrive, ShieldCheck, PlusCircle, FolderOpen, Clock, Smartphone } from 'lucide-react';
+import { Palette, Trash, RefreshCw, HardDrive, ShieldCheck, PlusCircle, FolderOpen, Clock } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { rescanAll, library, scanDirectory, verifyLibrary, permissionStatus, isFileSystemApiSupported, handleManualFileSelect } = useFiles();
-  const { sleepTimer, setSleepTimer, isBackgroundPlayEnabled, toggleBackgroundPlay } = usePlayer();
+  const { sleepTimer, setSleepTimer } = usePlayer();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [customTime, setCustomTime] = React.useState('');
 
@@ -106,29 +106,7 @@ export const Settings: React.FC = () => {
           </button>
         </div>
 
-        <div className="setting-row">
-          <div style={{ paddingRight: '16px' }}>
-            <p className="setting-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-               <Smartphone size={20} className="text-primary" />
-               Background Play
-            </p>
-            <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 28px' }}>Keep playing audio when you switch tabs or minimize the app</p>
-          </div>
-          <button 
-             className="btn-secondary"
-             onClick={toggleBackgroundPlay}
-             style={{ 
-               padding: '8px 20px', 
-               borderRadius: '20px', 
-               background: isBackgroundPlayEnabled ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-               color: isBackgroundPlayEnabled ? '#000' : '#fff',
-               border: 'none',
-               fontWeight: 'bold'
-             }}
-          >
-            {isBackgroundPlayEnabled ? 'ON' : 'OFF'}
-          </button>
-        </div>
+
 
         <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
           <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

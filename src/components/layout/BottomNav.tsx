@@ -1,11 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Library, Heart, Settings, Search } from 'lucide-react';
+import { Home, Library, Heart, Settings, ListMusic } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
   const navItems = [
     { to: '/', icon: <Home size={22} />, label: 'Home' },
-    { to: '/search', icon: <Search size={22} />, label: 'Search' },
+    { to: '/playlists', icon: <ListMusic size={22} />, label: 'Playlists' },
     { to: '/library', icon: <Library size={22} />, label: 'Library' },
     { to: '/favorites', icon: <Heart size={24} />, label: 'Favorites' },
     { to: '/settings', icon: <Settings size={22} />, label: 'Settings' },

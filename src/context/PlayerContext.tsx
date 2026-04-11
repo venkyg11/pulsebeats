@@ -27,6 +27,7 @@ interface PlayerContextType {
   equalizerStyle: 'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular';
   playError: PlayErrorType;
   isBuffering: boolean;
+  sleepTimer: number | null;
   playSong: (index: number, newQueue?: SongMetadata[]) => Promise<void>;
   togglePlay: () => Promise<void>;
   nextSong: () => Promise<void>;
@@ -40,12 +41,15 @@ interface PlayerContextType {
   setEqualizerStyle: (
     style: 'classic' | 'dots' | 'wave' | 'capsule' | 'mirror' | 'circular'
   ) => void;
+  setSleepTimer: (minutes: number | null) => void;
+  isBackgroundPlayEnabled: boolean;
+  toggleBackgroundPlay: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { library, getFileForSong } = useFiles();
+  const { library, getFileForSong, toggleFavorite } = useFiles();
 
   const [queue, setQueue] = useState<SongMetadata[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
@@ -61,6 +65,47 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   >('classic');
   const [playError, setPlayError] = useState<PlayErrorType>('none');
   const [isBuffering, setIsBuffering] = useState(false);
+  const [sleepTimer, setSleepTimerState] = useState<number | null>(null);
+  const [isBackgroundPlayEnabled, setIsBackgroundPlayEnabled] = useState(true);
+
+  const toggleBackgroundPlay = useCallback(() => setIsBackgroundPlayEnabled(p => !p), []);
+
+  const setSleepTimer = useCallback((minutes: number | null) => {
+    if (minutes === null) {
+      setSleepTimerState(null);
+    } else {
+      setSleepTimerState(Date.now() + minutes * 60 * 1000);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sleepTimer === null) return;
+    
+    const interval = setInterval(() => {
+      if (Date.now() >= sleepTimer) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+        setSleepTimerState(null);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [sleepTimer]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      // Pause if background play is disabled and user switches away from the app
+      if (document.hidden && !isBackgroundPlayEnabled) {
+        if (audioRef.current && isPlaying) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isBackgroundPlayEnabled, isPlaying]);
+
 
   const audioRef = useRef<HTMLAudioElement>(new Audio());
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -135,10 +180,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsPlaying(true);
       setPlayError('none');
       setIsBuffering(false);
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
     };
 
     const onPause = () => {
       setIsPlaying(false);
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     };
 
     const onEnded = async () => {
@@ -568,6 +615,46 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const toggleRepeat = () => setRepeatMode((prev) => (prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off'));
   const setEq = (style: typeof equalizerStyle) => setEqualizerStyle(style);
 
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (currentSong) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: currentSong.album,
+        artwork: currentSong.coverArt ? [
+          { src: currentSong.coverArt, sizes: '512x512', type: 'image/jpeg' }
+        ] : []
+      });
+    }
+
+    const handleSeekForward = () => {
+      if (currentSong) toggleFavorite(currentSong.id);
+    };
+
+    navigator.mediaSession.setActionHandler('play', async () => {
+      await resumeAudioContext();
+      audioRef.current.play();
+      setIsPlaying(true);
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    });
+    navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
+    navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
+    navigator.mediaSession.setActionHandler('seekforward', handleSeekForward); // Mapped to Favorite
+
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+      navigator.mediaSession.setActionHandler('seekforward', null);
+    };
+  }, [currentSong, prevSong, nextSong, resumeAudioContext, toggleFavorite]);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -585,6 +672,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         equalizerStyle,
         playError,
         isBuffering,
+        sleepTimer,
         playSong,
         togglePlay,
         nextSong,
@@ -596,6 +684,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleRepeat,
         toggleBoost,
         setEqualizerStyle: setEq,
+        setSleepTimer,
+        isBackgroundPlayEnabled,
+        toggleBackgroundPlay,
       }}
     >
       {children}

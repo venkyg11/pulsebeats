@@ -19,6 +19,13 @@ export interface SongMetadata {
   isUnsupported?: boolean;
 }
 
+export interface Playlist {
+  id: string;
+  name: string;
+  songIds: string[];
+  createdAt: number;
+}
+
 interface PulseBeatsDB extends DBSchema {
   songs: {
     key: string;
@@ -33,13 +40,17 @@ interface PulseBeatsDB extends DBSchema {
     key: string;
     value: any;
   };
+  playlists: {
+    key: string;
+    value: Playlist;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<PulseBeatsDB>> | null = null;
 
 export const initDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<PulseBeatsDB>('pulse-beats-db', 2, {
+    dbPromise = openDB<PulseBeatsDB>('pulse-beats-db', 3, {
       upgrade(db: IDBPDatabase<PulseBeatsDB>, oldVersion) {
         if (oldVersion < 1) {
           const store = db.createObjectStore('songs', { keyPath: 'id' });
@@ -49,6 +60,9 @@ export const initDB = () => {
         }
         if (oldVersion < 2) {
           db.createObjectStore('settings');
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore('playlists', { keyPath: 'id' });
         }
       },
     });
@@ -122,4 +136,19 @@ export const saveSetting = async (key: string, value: any) => {
 export const getSetting = async (key: string): Promise<any> => {
   const db = await initDB();
   return await db.get('settings', key);
+};
+
+export const savePlaylist = async (playlist: Playlist) => {
+  const db = await initDB();
+  await db.put('playlists', playlist);
+};
+
+export const getPlaylists = async (): Promise<Playlist[]> => {
+  const db = await initDB();
+  return await db.getAll('playlists');
+};
+
+export const deletePlaylistFromDB = async (id: string) => {
+  const db = await initDB();
+  await db.delete('playlists', id);
 };

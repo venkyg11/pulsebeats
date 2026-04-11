@@ -5,10 +5,8 @@ import { Library } from './components/views/Library'
 import { Settings } from './components/views/Settings'
 import { ContinueListening } from './components/views/ContinueListening'
 import { Favorites } from './components/views/Favorites'
+import { Playlists } from './components/views/Playlists'
 import './index.css'
-
-// Remaining Placeholder views
-const Playlists = () => <div className="page-content"><h1>Playlists</h1></div>
 
 function App() {
   return (
@@ -17,7 +15,6 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="continue" element={<ContinueListening />} />
-          <Route path="search" element={<Library />} />
           <Route path="library" element={<Library />} />
           <Route path="playlists" element={<Playlists />} />
           <Route path="favorites" element={<Favorites />} />

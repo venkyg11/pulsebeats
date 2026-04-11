@@ -1,11 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as musicMetadata from 'music-metadata-browser';
 import { fetchMovieArt } from '../utils/fetchArtwork';
-import type { SongMetadata } from '../utils/db';
-import { saveSongs, getSongs, clearSongs, toggleSongFavorite, saveSetting, getSetting, getSongById } from '../utils/db';
+import type { SongMetadata, Playlist } from '../utils/db';
+import { saveSongs, getSongs, clearSongs, toggleSongFavorite, saveSetting, getSetting, getSongById, getPlaylists, savePlaylist, deletePlaylistFromDB } from '../utils/db';
 
 interface FileContextType {
   library: SongMetadata[];
+  playlists: Playlist[];
+  createPlaylist: (name: string, initialSongIds?: string[]) => Promise<void>;
+  addSongToPlaylist: (playlistId: string, songId: string) => Promise<void>;
+  removeSongFromPlaylist: (playlistId: string, songId: string) => Promise<void>;
+  deletePlaylist: (playlistId: string) => Promise<void>;
   isScanning: boolean;
   permissionStatus: 'granted' | 'prompt' | 'denied';
   scanDirectory: () => Promise<void>;
@@ -28,6 +33,7 @@ const fileCache = new Map<string, File>();
 
 export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [library, setLibrary] = useState<SongMetadata[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   const [hasGivenPermission, setHasGivenPermission] = useState<boolean>(() => {
@@ -49,6 +55,8 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     setLibrary(saved.sort((a, b) => b.addedAt - a.addedAt));
+    const savedPlaylists = await getPlaylists();
+    setPlaylists(savedPlaylists.sort((a, b) => b.createdAt - a.createdAt));
   }, []);
 
   useEffect(() => {
@@ -341,10 +349,54 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ));
   };
 
+  const createPlaylist = async (name: string, initialSongIds: string[] = []) => {
+    const safeId = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : `playlist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+    const newPlaylist: Playlist = {
+      id: safeId,
+      name,
+      songIds: initialSongIds,
+      createdAt: Date.now()
+    };
+    try {
+      await savePlaylist(newPlaylist);
+      setPlaylists(prev => [newPlaylist, ...prev]);
+    } catch (err) {
+      console.error('savePlaylist DB error:', err);
+      throw err;
+    }
+  };
+
+  const addSongToPlaylist = async (playlistId: string, songId: string) => {
+    const playlist = playlists.find(p => p.id === playlistId);
+    if (playlist && !playlist.songIds.includes(songId)) {
+      const updated = { ...playlist, songIds: [...playlist.songIds, songId] };
+      await savePlaylist(updated);
+      setPlaylists(prev => prev.map(p => p.id === playlistId ? updated : p));
+    }
+  };
+
+  const removeSongFromPlaylist = async (playlistId: string, songId: string) => {
+    const playlist = playlists.find(p => p.id === playlistId);
+    if (playlist) {
+      const updated = { ...playlist, songIds: playlist.songIds.filter(id => id !== songId) };
+      await savePlaylist(updated);
+      setPlaylists(prev => prev.map(p => p.id === playlistId ? updated : p));
+    }
+  };
+
+  const deletePlaylist = async (playlistId: string) => {
+    await deletePlaylistFromDB(playlistId);
+    setPlaylists(prev => prev.filter(p => p.id !== playlistId));
+  };
+
   return (
     <FileContext.Provider value={{ 
-      library, isScanning, permissionStatus, isFileSystemApiSupported, hasGivenPermission,
+      library, playlists, isScanning, permissionStatus, isFileSystemApiSupported, hasGivenPermission,
       scanDirectory, rescanAll, toggleFavorite, verifyLibrary, getFileForSong, handleManualFileSelect,
+      createPlaylist, addSongToPlaylist, removeSongFromPlaylist, deletePlaylist,
       setHasGivenPermission: (val: boolean) => {
         localStorage.setItem('mediaAccessGranted', val.toString());
         setHasGivenPermission(val);

@@ -1,12 +1,15 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useFiles } from '../../context/FileContext';
-import { Palette, Trash, RefreshCw, HardDrive, ShieldCheck, PlusCircle, FolderOpen } from 'lucide-react';
+import { usePlayer } from '../../context/PlayerContext';
+import { Palette, Trash, RefreshCw, HardDrive, ShieldCheck, PlusCircle, FolderOpen, Clock, Smartphone } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const { rescanAll, library, scanDirectory, verifyLibrary, permissionStatus, isFileSystemApiSupported, handleManualFileSelect } = useFiles();
+  const { sleepTimer, setSleepTimer, isBackgroundPlayEnabled, toggleBackgroundPlay } = usePlayer();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [customTime, setCustomTime] = React.useState('');
 
   const handleImportClick = () => {
     if (isFileSystemApiSupported) {
@@ -101,6 +104,68 @@ export const Settings: React.FC = () => {
           <button className="btn-secondary" style={{ opacity: 0.6 }} onClick={rescanAll}>
             <Trash size={18} /> Reset Library
           </button>
+        </div>
+
+        <div className="setting-row">
+          <div style={{ paddingRight: '16px' }}>
+            <p className="setting-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+               <Smartphone size={20} className="text-primary" />
+               Background Play
+            </p>
+            <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 28px' }}>Keep playing audio when you switch tabs or minimize the app</p>
+          </div>
+          <button 
+             className="btn-secondary"
+             onClick={toggleBackgroundPlay}
+             style={{ 
+               padding: '8px 20px', 
+               borderRadius: '20px', 
+               background: isBackgroundPlayEnabled ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+               color: isBackgroundPlayEnabled ? '#000' : '#fff',
+               border: 'none',
+               fontWeight: 'bold'
+             }}
+          >
+            {isBackgroundPlayEnabled ? 'ON' : 'OFF'}
+          </button>
+        </div>
+
+        <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={20} className="text-primary" />
+              <div>
+                <p className="setting-title" style={{ margin: 0 }}>Sleep Timer</p>
+                <p className="text-muted" style={{ margin: 0, fontSize: '13px' }}>
+                   {sleepTimer ? `Stops in ${Math.max(1, Math.ceil((sleepTimer - Date.now()) / 60000))} mins` : 'Stop playback after set time'}
+                </p>
+              </div>
+            </div>
+            {sleepTimer && (
+              <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', background: 'rgba(255, 50, 50, 0.2)' }} onClick={() => setSleepTimer(null)}>
+                Turn Off
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
+            {[15, 30, 45].map(min => (
+              <button key={min} className="library-filter-btn" style={{ flex: 1, minWidth: '60px', textAlign: 'center', padding: '8px' }} onClick={() => setSleepTimer(min)}>
+                {min}m
+              </button>
+            ))}
+            <div style={{ display: 'flex', flex: 1.5, minWidth: '130px', gap: '8px' }}>
+              <input 
+                 type="number" 
+                 placeholder="Mins" 
+                 value={customTime}
+                 onChange={e => setCustomTime(e.target.value)}
+                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)', color: '#fff', padding: '8px', borderRadius: '20px', width: '100%', outline: 'none', textAlign: 'center', fontSize: '13px' }}
+              />
+              <button className="library-filter-btn" style={{ padding: '8px 12px' }} onClick={() => { if(customTime) { setSleepTimer(parseInt(customTime)); setCustomTime(''); } }}>
+                Set
+              </button>
+            </div>
+          </div>
         </div>
       </section>
       

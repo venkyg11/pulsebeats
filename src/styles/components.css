@@ -480,6 +480,13 @@
   gap: 24px;
 }
 
+@media (max-width: 768px) {
+  .theme-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
 .theme-card {
   cursor: pointer;
   text-align: center;
@@ -492,6 +499,14 @@
   margin-bottom: 12px;
   transition: transform 0.2s, border-color 0.2s;
   display: flex; align-items: center; justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .theme-preview {
+    height: 80px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
 }
 
 .theme-accent {

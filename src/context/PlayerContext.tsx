@@ -70,6 +70,41 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const toggleBackgroundPlay = useCallback(() => setIsBackgroundPlayEnabled(p => !p), []);
 
+  // Use refs securely to prevent duplicate unbindings/bindings inside Effects
+  const queueRef = useRef<SongMetadata[]>([]);
+  const currentIndexRef = useRef<number>(-1);
+  const songRef = useRef<SongMetadata | null>(null);
+  const repeatModeRef = useRef(repeatMode);
+  const isShuffleRef = useRef(isShuffle);
+
+  // Safely initialize Audio object exactly once
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  if (!audioRef.current && typeof window !== 'undefined') {
+    audioRef.current = new Audio();
+  }
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  const objectUrlRef = useRef<string | null>(null);
+  const loadRequestIdRef = useRef(0);
+  
+  // Ref for debouncing and track transition locking
+  const isTransitioningRef = useRef(false);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currentSong =
+    currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+
+  const isBoosted = volume > 100;
+
+  useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { songRef.current = currentSong; }, [currentSong]);
+  useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
+  useEffect(() => { isShuffleRef.current = isShuffle; }, [isShuffle]);
+
   const setSleepTimer = useCallback((minutes: number | null) => {
     if (minutes === null) {
       setSleepTimerState(null);
@@ -83,7 +118,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     const interval = setInterval(() => {
       if (Date.now() >= sleepTimer) {
-        audioRef.current.pause();
+        if (audioRef.current) audioRef.current.pause();
         setIsPlaying(false);
         setSleepTimerState(null);
       }
@@ -94,9 +129,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     const handleVisibility = () => {
-      // Pause if background play is disabled and user switches away from the app
       if (document.hidden && !isBackgroundPlayEnabled) {
-        if (audioRef.current && isPlaying) {
+        if (audioRef.current && isPlaying && !isTransitioningRef.current) {
           audioRef.current.pause();
           setIsPlaying(false);
         }
@@ -105,35 +139,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [isBackgroundPlayEnabled, isPlaying]);
-
-
-  const audioRef = useRef<HTMLAudioElement>(new Audio());
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
-
-  const objectUrlRef = useRef<string | null>(null);
-  const songRef = useRef<SongMetadata | null>(null);
-  const queueRef = useRef<SongMetadata[]>([]);
-  const currentIndexRef = useRef<number>(-1);
-  const loadRequestIdRef = useRef(0);
-
-  const currentSong =
-    currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-
-  const isBoosted = volume > 100;
-
-  useEffect(() => {
-    queueRef.current = queue;
-  }, [queue]);
-
-  useEffect(() => {
-    currentIndexRef.current = currentIndex;
-  }, [currentIndex]);
-
-  useEffect(() => {
-    songRef.current = currentSong;
-  }, [currentSong]);
 
   useEffect(() => {
     if (queue.length > 0 && library.length > 0) {
@@ -153,10 +158,49 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         })
       );
     }
-  }, [library, queue.length]);
+  }, [library]);
 
+  const initAudioContext = useCallback(() => {
+    if (audioContextRef.current) return;
+
+    try {
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      const gain = ctx.createGain();
+      
+      if (audioRef.current) {
+        const source = ctx.createMediaElementSource(audioRef.current);
+        source.connect(gain);
+        sourceNodeRef.current = source;
+      }
+      
+      gain.connect(ctx.destination);
+
+      audioContextRef.current = ctx;
+      gainNodeRef.current = gain;
+
+      const vol = isMuted ? 0 : volume / 100;
+      gain.gain.value = vol;
+    } catch (err) {
+      console.warn('AudioContext failed to initialize:', err);
+    }
+  }, [volume, isMuted]);
+
+  const resumeAudioContext = useCallback(async () => {
+    initAudioContext();
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+      } catch (err) {}
+    }
+  }, [initAudioContext]);
+
+  // Robustly handle Audio events exactly once!
   useEffect(() => {
     const audio = audioRef.current;
+    if (!audio) return;
 
     const onTimeUpdate = () => {
       setProgress(audio.currentTime || 0);
@@ -165,7 +209,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const onLoadedMetadata = () => {
       if (!isNaN(audio.duration) && audio.duration > 0 && audio.duration !== Infinity) {
         setDuration(audio.duration);
-
         if (songRef.current && (!songRef.current.duration || songRef.current.duration === 0)) {
           saveSong({ ...songRef.current, duration: audio.duration });
         }
@@ -181,32 +224,32 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setPlayError('none');
       setIsBuffering(false);
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      // Ensure audio context is running to fix some weird BT desync issues
+      if (audioContextRef.current?.state === 'suspended') {
+         resumeAudioContext();
+      }
     };
 
     const onPause = () => {
-      setIsPlaying(false);
-      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      // Don't update playing state if we are intentionally transitioning tracks
+      if (!isTransitioningRef.current) {
+        setIsPlaying(false);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      }
     };
 
-    const onEnded = async () => {
-      if (repeatMode === 'one') {
-        try {
-          audio.currentTime = 0;
-          await audio.play();
-        } catch (error: any) {
-          if (error?.name === 'NotAllowedError') {
-            setPlayError('blocked');
-          } else {
-            setPlayError('unsupported');
-          }
-          setIsPlaying(false);
-        }
+    const onEnded = () => {
+      if (repeatModeRef.current === 'one') {
+        audio.currentTime = 0;
+        audio.play().catch(() => {
+           setPlayError('blocked');
+           setIsPlaying(false);
+        });
         return;
       }
 
       const q = queueRef.current;
       const idx = currentIndexRef.current;
-
       if (!q.length || idx < 0) {
         setIsPlaying(false);
         return;
@@ -214,7 +257,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       let nextIndex = idx + 1;
       if (nextIndex >= q.length) {
-        if (repeatMode === 'all') nextIndex = 0;
+        if (repeatModeRef.current === 'all') nextIndex = 0;
         else {
           setIsPlaying(false);
           return;
@@ -228,21 +271,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       setCurrentIndex(nextIndex);
-      try {
-        await loadAndPlayFile(nextTrack, true);
-      } catch {
-        // handled inside loadAndPlayFile
-      }
+      // Auto-next track without debouncing
+      handleTrackSwitch(nextTrack);
     };
 
     const onError = () => {
-      console.error('Audio error code:', audio.error?.code, audio.error?.message);
-      setPlayError('unsupported');
-      setIsPlaying(false);
-      setIsBuffering(false);
+      if (!isTransitioningRef.current) {
+         setPlayError('unsupported');
+         setIsPlaying(false);
+         setIsBuffering(false);
+      }
     };
 
-    const onWaiting = () => setIsBuffering(true);
+    const onWaiting = () => {
+      if (!isTransitioningRef.current) setIsBuffering(true);
+    };
     const onPlaying = () => setIsBuffering(false);
     const onCanPlay = () => setIsBuffering(false);
 
@@ -266,23 +309,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('canplay', onCanPlay);
-      audio.pause();
-
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
+      
+      // DO NOT pause on unmount because this provider wraps the app
     };
-  }, [repeatMode]);
+  }, []); // Run only once to maintain stable handlers
 
   useEffect(() => {
     if (gainNodeRef.current) {
       const vol = isMuted ? 0 : volume / 100;
-      // Use exponential ramp for smoother volume changes
       gainNodeRef.current.gain.setTargetAtTime(vol, 0, 0.05);
-      // Still set the audio volume as fallback, but cap it at 1.0
-      audioRef.current.volume = Math.min(1.0, vol);
-    } else {
+      if (audioRef.current) audioRef.current.volume = Math.min(1.0, vol);
+    } else if (audioRef.current) {
       let actualVol = isMuted ? 0 : volume / 100;
       if (actualVol > 1) actualVol = 1;
       if (actualVol < 0) actualVol = 0;
@@ -290,61 +327,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [volume, isMuted]);
 
-  const initAudioContext = useCallback(() => {
-    if (audioContextRef.current) return;
-
-    try {
-      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
-
-      const ctx = new AudioContextClass();
-      const gain = ctx.createGain();
-      const source = ctx.createMediaElementSource(audioRef.current);
-
-      source.connect(gain);
-      gain.connect(ctx.destination);
-
-      audioContextRef.current = ctx;
-      gainNodeRef.current = gain;
-      sourceNodeRef.current = source;
-
-      // Initialize volume
-      const vol = isMuted ? 0 : volume / 100;
-      gain.gain.value = vol;
-    } catch (err) {
-      console.warn('AudioContext failed to initialize:', err);
-    }
-  }, [volume, isMuted]);
-
-  const resumeAudioContext = useCallback(async () => {
-    initAudioContext();
-    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      try {
-        await audioContextRef.current.resume();
-      } catch (err) {
-        console.warn('Failed to resume AudioContext:', err);
-      }
-    }
-  }, [initAudioContext]);
-
-  const cleanupOldObjectUrl = useCallback((excludeUrl?: string | null) => {
-    const existing = objectUrlRef.current;
-    if (existing && existing !== excludeUrl && existing.startsWith('blob:')) {
-      URL.revokeObjectURL(existing);
-      objectUrlRef.current = null;
-    }
-  }, []);
-
   const loadAndPlayFile = useCallback(
-    async (song: SongMetadata, forcePlay = true, isRetry = false): Promise<void> => {
+    async (song: SongMetadata, forcePlay = true): Promise<void> => {
       const audio = audioRef.current;
       if (!audio) return;
 
       const requestId = ++loadRequestIdRef.current;
+
       setPlayError('none');
       setIsBuffering(true);
 
-      // Pre-flight check: If file is marked unsupported during scan, reject immediately.
       if (song.isUnsupported) {
         setIsBuffering(false);
         setIsPlaying(false);
@@ -355,61 +347,89 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const file = await getFileForSong(song);
 
+        if (requestId !== loadRequestIdRef.current) return;
+
         if (!file) {
-          console.warn('Playback failed: no file returned for song');
           setIsPlaying(false);
           setIsBuffering(false);
           setPlayError('unsupported');
           return;
         }
 
-        const mimeType = file.type || '';
-        if (mimeType && audio.canPlayType(mimeType) === '') {
-          console.warn('Format may not be supported on this device:', mimeType);
+        // 1. Pause current track & reset hardware source mappings safely
+        audio.pause();
+
+        // Very important for Bluetooth clarity on Android/Chrome: 
+        // Disconnecting Web Audio and reconnecting it cleans up the downstream pipeline.
+        if (sourceNodeRef.current) {
+          try { sourceNodeRef.current.disconnect(); } catch (e) {}
         }
 
-        const newObjectUrl = URL.createObjectURL(file);
-        const previousUrl = objectUrlRef.current;
+        audio.removeAttribute('src');
+        audio.src = '';
+        audio.load(); // Flush buffers
 
-        audio.pause();
-        audio.preload = 'auto'; // Android: high priority loading
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
+
+        // 2. Map new source
+        const newObjectUrl = URL.createObjectURL(file);
+        audio.preload = 'auto'; // Force buffer stream immediately
         objectUrlRef.current = newObjectUrl;
         audio.src = newObjectUrl;
         audio.load();
 
-        await new Promise<void>((resolve, reject) => {
-          let finished = false;
-          const cleanup = () => {
-            audio.removeEventListener('canplay', onCanPlay);
-            audio.removeEventListener('error', onLoadError);
-          };
-          const onCanPlay = () => {
-            if (finished) return;
-            finished = true;
-            cleanup();
-            resolve();
-          };
-          const onLoadError = () => {
-            if (finished) return;
-            finished = true;
-            cleanup();
-            reject(new Error('Audio failed to load'));
-          };
-          audio.addEventListener('canplay', onCanPlay, { once: true });
-          audio.addEventListener('error', onLoadError, { once: true });
-          setTimeout(() => {
-            if (finished) return;
-            finished = true;
-            cleanup();
-            resolve(); // Resolve anyway on timeout to try playing
-          }, 6000);
-        });
-
-        if (requestId !== loadRequestIdRef.current) {
-          URL.revokeObjectURL(newObjectUrl);
-          return;
+        if (sourceNodeRef.current && gainNodeRef.current) {
+           sourceNodeRef.current.connect(gainNodeRef.current);
         }
 
+        // 3. Wait strictly for loaded status before playing
+        await new Promise<void>((resolve, reject) => {
+          let resolved = false;
+
+          const finish = () => {
+             if (resolved) return;
+             resolved = true;
+             cleanup();
+             resolve();
+          };
+
+          const checkReady = () => {
+             // 3 means HAVE_FUTURE_DATA
+             if (audio.readyState >= 3) {
+                 finish();
+             }
+          };
+
+          const onFail = () => {
+            if (resolved) return;
+            resolved = true;
+            cleanup();
+            reject(new Error('Audio load failed'));
+          };
+
+          const cleanup = () => {
+            audio.removeEventListener('canplay', checkReady);
+            audio.removeEventListener('canplaythrough', checkReady);
+            audio.removeEventListener('error', onFail);
+          };
+
+          audio.addEventListener('canplay', checkReady);
+          audio.addEventListener('canplaythrough', checkReady);
+          audio.addEventListener('error', onFail);
+
+          checkReady(); // check if already ready
+
+          setTimeout(() => {
+             finish(); // Timeout gracefully and try playing anyway
+          }, 4000);
+        });
+
+        if (requestId !== loadRequestIdRef.current) return;
+
+        // Reset positions
         if (song.lastProgress && song.lastProgress < (song.duration || 0) - 2) {
           audio.currentTime = song.lastProgress;
           setProgress(song.lastProgress);
@@ -418,44 +438,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setProgress(0);
         }
 
+        // 4. Safely Trigger Play
         if (forcePlay) {
           await resumeAudioContext();
-          try {
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-              await playPromise;
-            }
-            setIsPlaying(true);
-            setPlayError('none');
-          } catch (error: any) {
-            console.error('Play failed:', error?.name, error?.message);
-            if (error?.name === 'NotAllowedError') {
-              setPlayError('blocked');
-              console.log('📢 Android Playback: Blocked until user tap.');
-            } else if (!isRetry) {
-              console.warn('Playback failed. Recreating ObjectURL and retrying once...');
-              audio.pause();
-              audio.src = '';
-              if (objectUrlRef.current && objectUrlRef.current.startsWith('blob:')) {
-                URL.revokeObjectURL(objectUrlRef.current);
-                objectUrlRef.current = null;
-              }
-              // Immediately retry once. The recursive call will hit the !isRetry check if it fails again.
-              return loadAndPlayFile(song, forcePlay, true);
-            } else {
-              setPlayError('unsupported');
-            }
-            setIsPlaying(false);
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+             await playPromise;
           }
+          setIsPlaying(true);
         }
 
-        if (previousUrl && previousUrl !== newObjectUrl && previousUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(previousUrl);
-        }
       } catch (error: any) {
-        console.error('Playback setup failed:', error);
+        if (requestId !== loadRequestIdRef.current) return;
         setIsPlaying(false);
-        setIsBuffering(false);
         setPlayError(error?.name === 'NotAllowedError' ? 'blocked' : 'unsupported');
       } finally {
         if (requestId === loadRequestIdRef.current) {
@@ -466,9 +461,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [getFileForSong, resumeAudioContext]
   );
 
+  const handleTrackSwitch = useCallback(async (track: SongMetadata, forcePlay = true) => {
+    isTransitioningRef.current = true;
+    try {
+      await loadAndPlayFile(track, forcePlay);
+    } finally {
+      isTransitioningRef.current = false;
+    }
+  }, [loadAndPlayFile]);
+
   const playSong = useCallback(
     async (index: number, newQueue?: SongMetadata[]) => {
-      // Direct user gesture chain
       await resumeAudioContext();
       
       const targetQueue = newQueue ?? queueRef.current;
@@ -484,9 +487,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCurrentIndex(index);
       songRef.current = targetSong;
 
-      await loadAndPlayFile(targetSong, true);
+      // Wrap in transition lock
+      await handleTrackSwitch(targetSong, true);
     },
-    [loadAndPlayFile, resumeAudioContext]
+    [handleTrackSwitch, resumeAudioContext]
   );
 
   const togglePlay = useCallback(async () => {
@@ -497,6 +501,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (!audio || !song) return;
 
+    // Prevent toggle while actively loading
+    if (isTransitioningRef.current) return;
+
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
@@ -504,7 +511,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     if (!audio.src) {
-      await loadAndPlayFile(song, true);
+      await handleTrackSwitch(song, true);
       return;
     }
 
@@ -516,83 +523,69 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsPlaying(true);
       setPlayError('none');
     } catch (error: any) {
-      console.error('Resume failed:', error);
-      if (error?.name === 'NotAllowedError') {
-        setPlayError('blocked');
-      } else {
-        setPlayError('unsupported');
-      }
+      if (error?.name === 'NotAllowedError') setPlayError('blocked');
+      else setPlayError('unsupported');
       setIsPlaying(false);
     }
-  }, [isPlaying, loadAndPlayFile, resumeAudioContext]);
+  }, [isPlaying, handleTrackSwitch, resumeAudioContext]);
 
   const nextSong = useCallback(async () => {
     await resumeAudioContext();
-    const q = queueRef.current;
-    if (!q.length) return;
 
-    const current = currentIndexRef.current;
-    let nextIdx = current + 1;
+    // Debounce to block rapid successive tap corruption
+    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(async () => {
+      const q = queueRef.current;
+      if (!q.length) return;
 
-    if (isShuffle && q.length > 1) {
-      nextIdx = Math.floor(Math.random() * q.length);
-      while (nextIdx === current) {
+      const current = currentIndexRef.current;
+      let nextIdx = current + 1;
+
+      if (isShuffleRef.current && q.length > 1) {
         nextIdx = Math.floor(Math.random() * q.length);
+        while (nextIdx === current) {
+          nextIdx = Math.floor(Math.random() * q.length);
+        }
+      } else if (nextIdx >= q.length) {
+        nextIdx = repeatModeRef.current === 'all' ? 0 : current;
       }
-    } else if (nextIdx >= q.length) {
-      nextIdx = repeatMode === 'all' ? 0 : current;
-    }
 
-    if (nextIdx === current && repeatMode === 'off' && !isShuffle) return;
+      if (nextIdx === current && repeatModeRef.current === 'off' && !isShuffleRef.current) return;
 
-    const nextTrack = q[nextIdx];
-    if (nextTrack) {
-       setCurrentIndex(nextIdx);
-       songRef.current = nextTrack;
-       await loadAndPlayFile(nextTrack);
-    }
-  }, [isShuffle, repeatMode, loadAndPlayFile, resumeAudioContext]);
+      const nextTrack = q[nextIdx];
+      if (nextTrack) {
+         setCurrentIndex(nextIdx);
+         songRef.current = nextTrack;
+         await handleTrackSwitch(nextTrack);
+      }
+    }, 150);
+  }, [resumeAudioContext, handleTrackSwitch]);
 
   const prevSong = useCallback(async () => {
     await resumeAudioContext();
-    if (progress > 3) {
+
+    if (progress > 3 && audioRef.current) {
       audioRef.current.currentTime = 0;
       setProgress(0);
       return;
     }
 
-    const q = queueRef.current;
-    if (!q.length) return;
+    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+    debounceTimeoutRef.current = setTimeout(async () => {
+      const q = queueRef.current;
+      if (!q.length) return;
 
-    const current = currentIndexRef.current;
-    const prevIdx = current - 1 < 0 ? q.length - 1 : current - 1;
-    const prevTrack = q[prevIdx];
+      const current = currentIndexRef.current;
+      const prevIdx = current - 1 < 0 ? q.length - 1 : current - 1;
+      const prevTrack = q[prevIdx];
 
-    if (prevTrack) {
-       setCurrentIndex(prevIdx);
-       songRef.current = prevTrack;
-       await loadAndPlayFile(prevTrack);
-    }
-  }, [progress, loadAndPlayFile, resumeAudioContext]);
-
-  const handleEnded = useCallback(() => {
-    if (repeatMode === 'one') {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => setPlayError('blocked'));
-    } else {
-      nextSong();
-    }
-  }, [repeatMode, nextSong]);
-
-  useEffect(() => {
-    audioRef.current.onended = handleEnded;
-  }, [handleEnded]);
-
-  useEffect(() => {
-    let actualVol = isMuted ? 0 : volume / 100;
-    if (actualVol > 1) actualVol = 1;
-    audioRef.current.volume = actualVol;
-  }, [volume, isMuted]);
+      if (prevTrack) {
+         setCurrentIndex(prevIdx);
+         songRef.current = prevTrack;
+         await handleTrackSwitch(prevTrack);
+      }
+    }, 150);
+  }, [progress, resumeAudioContext, handleTrackSwitch]);
 
   useEffect(() => {
     if (isPlaying && currentSong && progress > 5) {
@@ -604,8 +597,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isPlaying, currentSong, progress]);
 
   const seekTo = (time: number) => {
-    audioRef.current.currentTime = time;
-    setProgress(time);
+    if (audioRef.current && !isTransitioningRef.current) {
+      audioRef.current.currentTime = time;
+      setProgress(time);
+    }
   };
 
   const setVolumeLevel = (vol: number) => setVolume(Math.max(0, Math.min(200, vol)));
@@ -635,16 +630,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     navigator.mediaSession.setActionHandler('play', async () => {
       await resumeAudioContext();
-      audioRef.current.play();
+      if (audioRef.current) audioRef.current.play();
       setIsPlaying(true);
     });
     navigator.mediaSession.setActionHandler('pause', () => {
-      audioRef.current.pause();
+      if (audioRef.current) audioRef.current.pause();
       setIsPlaying(false);
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
     navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
-    navigator.mediaSession.setActionHandler('seekforward', handleSeekForward); // Mapped to Favorite
+    navigator.mediaSession.setActionHandler('seekforward', handleSeekForward);
 
     return () => {
       navigator.mediaSession.setActionHandler('play', null);
@@ -693,7 +688,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     </PlayerContext.Provider>
   );
 };
-
 
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
